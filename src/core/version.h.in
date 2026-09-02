@@ -16,5 +16,7 @@
 #define APP_BUILD_DATE        "@APP_BUILD_DATE@"
 
 // Chuỗi phiên bản đầy đủ, ví dụ: 1.0.3 (build 42 · 9f1c2ab0 · 2026-09-02)
+// Ký tự "·" viết trực tiếp (không dùng escape \xNN) để QStringLiteral chuyển
+// đúng sang UTF-16 — escape sẽ thành hai ký tự rời.
 #define APP_VERSION_FULL \
-    APP_VERSION_STRING " (build " APP_BUILD_NUMBER " \xc2\xb7 " APP_GIT_COMMIT " \xc2\xb7 " APP_BUILD_DATE ")"
+    APP_VERSION_STRING " (build " APP_BUILD_NUMBER " · " APP_GIT_COMMIT " · " APP_BUILD_DATE ")"

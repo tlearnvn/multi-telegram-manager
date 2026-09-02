@@ -1,0 +1,43 @@
+// Thông tin phiên bản nhúng vào tệp .exe (Windows đọc để hiện ở tab Details).
+#include <windows.h>
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION    @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+ PRODUCTVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+ FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
+ FILEFLAGS      0x0L
+ FILEOS         VOS_NT_WINDOWS32
+ FILETYPE       VFT_APP
+ FILESUBTYPE    VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040400b0"   // Vietnamese, Unicode
+        BEGIN
+            VALUE "CompanyName",      "@APP_ORGANIZATION@"
+            VALUE "FileDescription",  "@APP_NAME@"
+            VALUE "FileVersion",      "@APP_VERSION@.0"
+            VALUE "InternalName",     "@APP_EXECUTABLE_NAME@"
+            VALUE "LegalCopyright",   "MIT License"
+            VALUE "OriginalFilename", "@APP_EXECUTABLE_NAME@.exe"
+            VALUE "ProductName",      "@APP_NAME@"
+            VALUE "ProductVersion",   "@APP_VERSION@ (build @APP_GIT_BUILD_NUMBER@)"
+            VALUE "Comments",         "Trinh khach Telegram da tai khoan"
+        END
+        BLOCK "040904b0"   // English (US), Unicode
+        BEGIN
+            VALUE "CompanyName",      "@APP_ORGANIZATION@"
+            VALUE "FileDescription",  "@APP_NAME@"
+            VALUE "FileVersion",      "@APP_VERSION@.0"
+            VALUE "InternalName",     "@APP_EXECUTABLE_NAME@"
+            VALUE "LegalCopyright",   "MIT License"
+            VALUE "OriginalFilename", "@APP_EXECUTABLE_NAME@.exe"
+            VALUE "ProductName",      "@APP_NAME@"
+            VALUE "ProductVersion",   "@APP_VERSION@ (build @APP_GIT_BUILD_NUMBER@)"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x404, 1200, 0x409, 1200
+    END
+END

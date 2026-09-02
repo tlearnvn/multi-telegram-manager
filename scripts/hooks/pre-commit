@@ -1,0 +1,11 @@
+#!/bin/sh
+# Tự tăng số PATCH trong VERSION khi commit có thay đổi mã nguồn.
+# Cài bằng: ./scripts/install-hooks.sh
+
+if command -v python3 >/dev/null 2>&1; then
+    python3 "$(git rev-parse --show-toplevel)/scripts/bump_version.py" --auto --staged
+elif command -v python >/dev/null 2>&1; then
+    python "$(git rev-parse --show-toplevel)/scripts/bump_version.py" --auto --staged
+else
+    echo "pre-commit: không tìm thấy python, bỏ qua bước tăng phiên bản" >&2
+fi

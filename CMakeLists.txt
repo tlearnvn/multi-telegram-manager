@@ -34,10 +34,15 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Kiểu build" FORCE)
 endif()
 
-# Gom mọi thứ vào một thư mục để đóng gói bản portable cho gọn.
+# Gom mọi thứ vào một thư mục để đóng gói bản portable cho gọn. Với generator
+# nhiều cấu hình (Visual Studio) phải đặt riêng từng cấu hình, nếu không MSVC sẽ
+# thêm thư mục con Release/Debug.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+foreach(_config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${_config} "${CMAKE_BINARY_DIR}/bin")
+endforeach()
 
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 6.3 REQUIRED COMPONENTS Core Gui Widgets)
 
 # --- Thông tin build được nhúng vào nhị phân -------------------------------
 include(cmake/GitInfo.cmake)
@@ -70,6 +75,8 @@ set(APP_SOURCES
     src/core/jsonutil.h
     src/core/formatting.cpp
     src/core/formatting.h
+    src/core/qrcode.cpp
+    src/core/qrcode.h
 
     src/td/tdloader.cpp
     src/td/tdloader.h
@@ -129,8 +136,8 @@ set(APP_SOURCES
     src/ui/broadcastdialog.h
     src/ui/dashboardpane.cpp
     src/ui/dashboardpane.h
-    src/ui/searchpanel.cpp
-    src/ui/searchpanel.h
+    src/ui/qrview.cpp
+    src/ui/qrview.h
     src/ui/trayicon.cpp
     src/ui/trayicon.h
     src/ui/toast.cpp

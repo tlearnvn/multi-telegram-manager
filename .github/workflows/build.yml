@@ -1,0 +1,337 @@
+name: Build
+
+# Mỗi lần đẩy mã lên nhánh:
+#   1. tự tăng số patch trong VERSION (đúng yêu cầu "phiên bản tự bump khi update code"),
+#   2. build bản Windows 64-bit và Debian/Linux 64-bit,
+#   3. đóng gói bản portable (dữ liệu nằm cạnh tệp chạy) rồi tải lên artifacts.
+#
+# TDLib được build một lần rồi giữ trong cache; nếu bước đó lỗi thì gói vẫn ra,
+# chỉ là người dùng phải tự đặt tdjson vào cạnh tệp chạy.
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Phần phiên bản cần tăng'
+        type: choice
+        options: [patch, minor, major, none]
+        default: patch
+      build_tdlib:
+        description: 'Build kèm TDLib (chậm, ~40 phút mỗi nền tảng)'
+        type: boolean
+        default: true
+
+env:
+  QT_VERSION: 6.4.3
+  TDLIB_REF: master
+
+jobs:
+  # ---------------------------------------------------------------------------
+  #  Tự tăng phiên bản
+  # ---------------------------------------------------------------------------
+  version:
+    name: Tăng phiên bản
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tăng số phiên bản
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          part="${{ github.event.inputs.bump || 'patch' }}"
+
+          before=$(python3 scripts/bump_version.py --print)
+
+          if [ "$part" = "none" ]; then
+            echo "Bỏ qua bước tăng phiên bản theo yêu cầu."
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python3 scripts/bump_version.py --part "$part"
+          else
+            # Chỉ tăng khi lần đẩy này thực sự chạm vào mã nguồn.
+            python3 scripts/bump_version.py --auto --part patch \
+              --diff-base "${{ github.event.before }}" || \
+              python3 scripts/bump_version.py --auto --part patch
+          fi
+
+          after=$(python3 scripts/bump_version.py --print)
+          echo "version=$after" >> "$GITHUB_OUTPUT"
+          echo "Phiên bản: $before -> $after"
+
+          if [ "$before" != "$after" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add VERSION
+            git commit -m "chore(version): $after [skip ci]"
+            for attempt in 1 2 3 4; do
+              if git push origin "HEAD:${GITHUB_REF#refs/heads/}"; then
+                break
+              fi
+              sleep $((2 ** attempt))
+              git pull --rebase origin "${GITHUB_REF#refs/heads/}" || true
+            done
+          fi
+
+  # ---------------------------------------------------------------------------
+  #  Debian / Linux 64-bit
+  # ---------------------------------------------------------------------------
+  linux:
+    name: Linux x86_64 (Debian 12+)
+    needs: version
+    # Ubuntu 22.04 dùng glibc 2.35 nên nhị phân chạy được trên Debian 12 (2.36)
+    # trở lên và mọi bản Ubuntu từ 22.04.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cài gói hệ thống
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build patchelf gperf libssl-dev zlib1g-dev \
+            libgl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-0 \
+            libxcb-xinerama0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xkb1
+
+      - name: Cài Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: gcc_64
+          cache: true
+
+      - name: Xác định commit TDLib
+        id: tdlib_ref
+        run: |
+          sha=$(git ls-remote https://github.com/tdlib/td.git "${{ env.TDLIB_REF }}" | cut -f1)
+          echo "sha=${sha:-unknown}" >> "$GITHUB_OUTPUT"
+          echo "TDLib $sha"
+
+      - name: Lấy TDLib từ cache
+        id: tdlib_cache
+        uses: actions/cache@v4
+        with:
+          path: ~/tdlib-prefix
+          key: tdlib-linux-${{ steps.tdlib_ref.outputs.sha }}-v1
+
+      - name: Build TDLib (chỉ khi cache trống)
+        if: steps.tdlib_cache.outputs.cache-hit != 'true' && github.event.inputs.build_tdlib != 'false'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "${{ env.TDLIB_REF }}" https://github.com/tdlib/td.git /tmp/td
+          cmake -S /tmp/td -B /tmp/td/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$HOME/tdlib-prefix" \
+            -DTD_ENABLE_LTO=OFF \
+            -DTD_ENABLE_JNI=OFF
+          cmake --build /tmp/td/build --target tdjson -j"$(nproc)"
+          cmake --install /tmp/td/build --component tdjson || true
+          # Bản build ra libtdjson.so nằm trong thư mục build; copy thủ công cho chắc.
+          mkdir -p "$HOME/tdlib-prefix/lib"
+          find /tmp/td/build -name 'libtdjson.so*' -exec cp -L {} "$HOME/tdlib-prefix/lib/" \;
+          ls -la "$HOME/tdlib-prefix/lib" || true
+
+      - name: Build ứng dụng
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DAPP_VERSION="${{ needs.version.outputs.version }}"
+          cmake --build build -j"$(nproc)"
+
+      - name: Đóng gói bản cơ động
+        run: |
+          set -euo pipefail
+          chmod +x packaging/linux/make-portable.sh
+          OUT="dist/TuanMultiTeleClient-${{ needs.version.outputs.version }}-linux-x64"
+          ./packaging/linux/make-portable.sh build/bin/TuanMultiTeleClient "$QT_ROOT_DIR" "$OUT"
+
+          cp README.md LICENSE VERSION "$OUT/"
+          cp docs/HUONG-DAN.md "$OUT/" 2>/dev/null || true
+
+          # Kèm TDLib nếu build được.
+          if compgen -G "$HOME/tdlib-prefix/lib/libtdjson.so*" > /dev/null; then
+            cp -L "$HOME"/tdlib-prefix/lib/libtdjson.so* "$OUT/lib/"
+            ( cd "$OUT/lib" && ln -sf "$(ls libtdjson.so* | head -1)" libtdjson.so )
+            echo "Đã kèm TDLib vào gói."
+          else
+            echo "CHƯA có TDLib — người dùng cần tự đặt libtdjson.so vào thư mục lib/." \
+              | tee "$OUT/THIEU-TDLIB.txt"
+          fi
+
+          tar -C dist -czf "dist/$(basename "$OUT").tar.gz" "$(basename "$OUT")"
+          ls -la dist
+
+      - name: Kiểm tra bản build chạy được
+        run: |
+          set -euo pipefail
+          OUT="dist/TuanMultiTeleClient-${{ needs.version.outputs.version }}-linux-x64"
+          cd "$OUT"
+          QT_QPA_PLATFORM=offscreen ./TuanMultiTeleClient --version
+          echo "--- kiểm tra khởi động ---"
+          QT_QPA_PLATFORM=offscreen timeout 10 ./TuanMultiTeleClient || true
+          test -d data && echo "OK: đã tạo thư mục data cạnh tệp chạy"
+          cat data/logs/*.log | head -20
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TuanMultiTeleClient-${{ needs.version.outputs.version }}-linux-x64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  #  Windows 64-bit
+  # ---------------------------------------------------------------------------
+  windows:
+    name: Windows x64
+    needs: version
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cài Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2019_64
+          cache: true
+
+      - name: Xác định commit TDLib
+        id: tdlib_ref
+        shell: bash
+        run: |
+          sha=$(git ls-remote https://github.com/tdlib/td.git "${{ env.TDLIB_REF }}" | cut -f1)
+          echo "sha=${sha:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Lấy TDLib từ cache
+        id: tdlib_cache
+        uses: actions/cache@v4
+        with:
+          path: C:\tdlib-prefix
+          key: tdlib-windows-${{ steps.tdlib_ref.outputs.sha }}-v1
+
+      - name: Build TDLib (chỉ khi cache trống)
+        if: steps.tdlib_cache.outputs.cache-hit != 'true' && github.event.inputs.build_tdlib != 'false'
+        continue-on-error: true
+        shell: cmd
+        run: |
+          git clone --depth 1 --branch %TDLIB_REF% https://github.com/tdlib/td.git C:\td || exit /b 0
+          "%VCPKG_INSTALLATION_ROOT%\vcpkg.exe" install gperf:x64-windows openssl:x64-windows zlib:x64-windows || exit /b 0
+          cmake -S C:\td -B C:\td\build -A x64 ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_TOOLCHAIN_FILE=%VCPKG_INSTALLATION_ROOT%\scripts\buildsystems\vcpkg.cmake ^
+            -DTD_ENABLE_LTO=OFF || exit /b 0
+          cmake --build C:\td\build --target tdjson --config Release || exit /b 0
+          mkdir C:\tdlib-prefix\bin 2>nul
+          for /r C:\td\build %%f in (tdjson.dll) do copy /y "%%f" C:\tdlib-prefix\bin\
+          dir C:\tdlib-prefix\bin
+
+      - name: Build ứng dụng
+        shell: cmd
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 ^
+            -DAPP_VERSION=${{ needs.version.outputs.version }} || exit /b 1
+          cmake --build build --config Release --parallel || exit /b 1
+          dir build\bin
+
+      - name: Đóng gói bản cơ động
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ needs.version.outputs.version }}'
+          $out = "dist\TuanMultiTeleClient-$version-win-x64"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+          Copy-Item build\bin\TuanMultiTeleClient.exe $out
+          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" `
+              --release --no-translations --no-system-d3d-compiler `
+              --no-opengl-sw --no-compiler-runtime `
+              "$out\TuanMultiTeleClient.exe"
+
+          Copy-Item README.md, LICENSE, VERSION $out
+          if (Test-Path docs\HUONG-DAN.md) { Copy-Item docs\HUONG-DAN.md $out }
+
+          # Kèm TDLib nếu build được.
+          if (Test-Path C:\tdlib-prefix\bin\tdjson.dll) {
+              Copy-Item C:\tdlib-prefix\bin\tdjson.dll $out
+              # tdjson.dll kéo theo openssl/zlib từ vcpkg.
+              Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" -ErrorAction SilentlyContinue |
+                  Where-Object { $_.Name -match '^(libcrypto|libssl|zlib)' } |
+                  ForEach-Object { Copy-Item $_.FullName $out }
+              Write-Host 'Da kem TDLib vao goi.'
+          } else {
+              'Chua co TDLib - hay tai tdjson.dll va dat canh tep chay.' |
+                  Out-File -Encoding utf8 "$out\THIEU-TDLIB.txt"
+          }
+
+          Compress-Archive -Path "$out\*" -DestinationPath "dist\TuanMultiTeleClient-$version-win-x64.zip" -Force
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TuanMultiTeleClient-${{ needs.version.outputs.version }}-win-x64
+          path: dist/*.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  #  Phát hành (chỉ khi bấm "Run workflow" thủ công)
+  # ---------------------------------------------------------------------------
+  release:
+    name: Phát hành bản tải về
+    needs: [version, linux, windows]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloaded
+
+      - name: Gom tệp cài đặt
+        run: |
+          mkdir -p release
+          find downloaded -type f \( -name '*.tar.gz' -o -name '*.zip' \) \
+            -exec cp {} release/ \;
+          ls -la release
+          cd release && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          name: "Tuấn' MultiTele Client v${{ needs.version.outputs.version }}"
+          body: |
+            Bản dựng tự động cho **Windows 64-bit** và **Debian/Linux 64-bit**.
+
+            | Nền tảng | Tệp | Cách dùng |
+            |---|---|---|
+            | Windows 10/11 64-bit | `...-win-x64.zip` | Giải nén ra thư mục bất kỳ (Desktop, USB…) rồi chạy `TuanMultiTeleClient.exe` |
+            | Debian 12+/Ubuntu 22.04+ 64-bit | `...-linux-x64.tar.gz` | `tar -xzf ...tar.gz` rồi chạy `./chay-ung-dung.sh` |
+
+            Mọi dữ liệu (cấu hình, phiên đăng nhập, tệp tải về) nằm trong thư mục
+            `data` ngay cạnh tệp chạy — copy cả thư mục là chuyển được sang máy khác.
+
+            Lần đầu chạy, ứng dụng sẽ hướng dẫn khai báo `api_id`/`api_hash` lấy từ
+            https://my.telegram.org — Telegram yêu cầu mỗi ứng dụng phải có khoá riêng.
+          files: release/*
+          draft: false
+          prerelease: false
