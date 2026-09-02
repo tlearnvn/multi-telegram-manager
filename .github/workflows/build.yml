@@ -245,6 +245,17 @@ jobs:
           test -d data && echo "OK: đã tạo thư mục data cạnh tệp chạy"
           cat data/logs/*.log | head -20
 
+          # Có kèm thư viện thì phải nạp được. Đây là phép kiểm duy nhất bắt
+          # được trường hợp tệp có mặt nhưng thiếu phụ thuộc nên nạp vẫn lỗi.
+          if [ -e lib/libtdjson.so ]; then
+            if ! grep -q "Đã nạp tdjson" data/logs/*.log; then
+              cat data/logs/*.log
+              echo "Có libtdjson.so trong gói nhưng ứng dụng không nạp được." >&2
+              exit 1
+            fi
+            echo "OK: nạp được tdjson từ gói"
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: TuanMultiTeleClient-${{ needs.version.outputs.version }}-linux-x64
@@ -303,6 +314,12 @@ jobs:
           cmake --build C:\td\build --target tdjson --config Release || exit /b 0
           mkdir C:\tdlib-prefix\bin 2>nul
           for /r C:\td\build %%f in (tdjson.dll) do copy /y "%%f" C:\tdlib-prefix\bin\
+          rem Gom luôn OpenSSL/zlib mà tdjson.dll cần vào cùng thư mục được cache.
+          rem Nếu chỉ cache tdjson.dll thì lần chạy sau (cache trúng) sẽ bỏ qua
+          rem bước cài vcpkg, và gói phát hành thiếu OpenSSL — nạp tdjson sẽ lỗi.
+          copy /y "%VCPKG_INSTALLATION_ROOT%\installed\x64-windows\bin\libcrypto*.dll" C:\tdlib-prefix\bin\ 2>nul
+          copy /y "%VCPKG_INSTALLATION_ROOT%\installed\x64-windows\bin\libssl*.dll" C:\tdlib-prefix\bin\ 2>nul
+          copy /y "%VCPKG_INSTALLATION_ROOT%\installed\x64-windows\bin\zlib*.dll" C:\tdlib-prefix\bin\ 2>nul
           dir C:\tdlib-prefix\bin
           rem Mọi lệnh trên đều "exit /b 0" khi lỗi để job vẫn đi tiếp, nên phải
           rem tự kiểm tra tệp mới biết là build được. Bước ghi cache dựa vào đây.
@@ -366,13 +383,14 @@ jobs:
           Copy-Item README.md, LICENSE, VERSION.txt $out
           if (Test-Path docs\HUONG-DAN.md) { Copy-Item docs\HUONG-DAN.md $out }
 
-          # Kèm TDLib nếu build được.
+          # Kèm TDLib nếu build được. Thư mục cache đã chứa cả OpenSSL/zlib mà
+          # tdjson.dll cần, nên copy trọn gói — không phụ thuộc vào việc bước
+          # cài vcpkg có chạy trong lần này hay không.
           if (Test-Path C:\tdlib-prefix\bin\tdjson.dll) {
-              Copy-Item C:\tdlib-prefix\bin\tdjson.dll $out
-              # tdjson.dll kéo theo openssl/zlib từ vcpkg.
-              Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" -ErrorAction SilentlyContinue |
-                  Where-Object { $_.Name -match '^(libcrypto|libssl|zlib)' } |
-                  ForEach-Object { Copy-Item $_.FullName $out }
+              Copy-Item C:\tdlib-prefix\bin\*.dll $out -Force
+              Write-Host 'Da kem TDLib vao goi:'
+              Get-ChildItem "$out\*.dll" | Where-Object { $_.Name -match '^(tdjson|libcrypto|libssl|zlib)' } |
+                  ForEach-Object { Write-Host "   $($_.Name)" }
               Write-Host 'Da kem TDLib vao goi.'
           } else {
               'Chua co TDLib - hay tai tdjson.dll va dat canh tep chay.' |
@@ -417,8 +435,23 @@ jobs:
           Write-Host 'OK: da tao thu muc data canh tep chay'
 
           $log = Get-ChildItem "$out\data\logs\*.log" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($log) { Get-Content $log.FullName -TotalCount 20 }
-          else { throw 'Không có tệp log — ứng dụng chưa khởi động được.' }
+          if (-not $log) { throw 'Không có tệp log — ứng dụng chưa khởi động được.' }
+          # Ứng dụng ghi log bằng UTF-8 (QTextStream của Qt 6), nên đọc đúng bảng
+          # mã để so khớp chuỗi tiếng Việt cho chắc.
+          $text = [System.IO.File]::ReadAllText($log.FullName, [System.Text.Encoding]::UTF8)
+          Get-Content $log.FullName -TotalCount 20
+
+          # Nếu gói có tdjson.dll thì ứng dụng phải nạp được nó. Đây là phép kiểm
+          # duy nhất bắt được trường hợp thiếu DLL phụ thuộc (OpenSSL/zlib):
+          # tdjson.dll có mặt nhưng LoadLibrary vẫn thất bại.
+          if (Test-Path "$out\tdjson.dll") {
+              if (($text -match 'Cannot load library') -or ($text -notmatch 'Đã nạp tdjson')) {
+                  Write-Host '--- toan bo log ---'
+                  Write-Host $text
+                  throw 'Co tdjson.dll trong goi nhung ung dung khong nap duoc — thieu DLL phu thuoc.'
+              }
+              Write-Host 'OK: nap duoc tdjson tu goi'
+          }
 
       - uses: actions/upload-artifact@v4
         with:
