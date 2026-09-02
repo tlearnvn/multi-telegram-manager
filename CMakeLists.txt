@@ -192,10 +192,17 @@ set_target_properties(tuan_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 set(APP_MAIN_SOURCES src/main.cpp)
 
 if(WIN32)
+    # rc.exe không hiểu cờ /utf-8 của trình biên dịch C++: không có BOM thì nó
+    # đọc tệp .rc theo bảng mã ANSI của hệ thống, và tên ứng dụng
+    # "Tuấn' MultiTele Client" sẽ thành chữ rác ở tab Details của tệp .exe.
+    # Vì vậy sinh tệp rồi ghi lại kèm BOM UTF-8.
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/app.rc.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc"
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc.utf8"
         @ONLY)
+    file(READ "${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc.utf8" _APP_RC_BODY)
+    string(ASCII 239 187 191 _UTF8_BOM)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc" "${_UTF8_BOM}${_APP_RC_BODY}")
     list(APPEND APP_MAIN_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc")
 endif()
 
