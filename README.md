@@ -55,8 +55,11 @@ TuanMultiTeleClient/
 - Ảnh – video – nhãn dán – ảnh động hiển thị ngay trong bong bóng; tệp, nhạc,
   tin thoại hiện thẻ có nút tải kèm tiến trình.
 - Kéo–thả tệp hoặc dán ảnh từ clipboard để gửi.
-- Dấu đã gửi / đã đọc, chỉ báo "đang gõ…", dải phân cách ngày, phản ứng,
-  lượt xem của kênh.
+- Dấu đã gửi / đã đọc, chỉ báo "đang gõ…", dải phân cách ngày, lượt xem của kênh.
+- **Phản ứng**: bấm phải một tin rồi chọn trong bộ 8 emoji hay dùng; bỏ phản
+  ứng cũng ở đó.
+- **Gửi nhãn dán**: bảng nhãn dán dùng gần đây và nhãn dán yêu thích, lấy trực
+  tiếp từ tài khoản Telegram của bạn.
 - Bảng thông tin: chi tiết cuộc trò chuyện, danh sách thành viên (bấm đôi để
   nhắn riêng), tắt tiếng, chặn, rời nhóm, xoá lịch sử.
 - Tạo nhóm, tạo kênh / nhóm lớn, tham gia bằng liên kết mời hoặc `@tên`.
@@ -67,7 +70,7 @@ TuanMultiTeleClient/
 - Chủ đề **tối / sáng / theo hệ thống**, 7 màu nhấn, cỡ chữ 80–150%.
 - Bộ biểu tượng **vẽ bằng QPainter** — không tệp ảnh ngoài, nét ở mọi mức DPI,
   tự đổi màu theo chủ đề.
-- Bảng emoji có nhóm và lịch sử dùng gần đây.
+- Bảng emoji có nhóm và lịch sử dùng gần đây; bảng nhãn dán ngay cạnh.
 - Biểu tượng khay hệ thống, thông báo desktop, đóng cửa sổ vẫn giữ trực tuyến.
 
 **Đăng nhập**
@@ -75,6 +78,21 @@ TuanMultiTeleClient/
 - Bằng **mã QR** (bộ tạo mã QR tự viết theo ISO/IEC 18004, không cần thư viện
   ngoài) hoặc bằng số điện thoại + mã xác thực + mật khẩu hai lớp.
 - Proxy SOCKS5 / HTTP / MTProto dùng chung cho mọi tài khoản.
+
+## Những gì bản này CHƯA làm được
+
+Nói thẳng để bạn không mất thời gian tìm:
+
+| Chưa có | Vì sao |
+| --- | --- |
+| Gọi thoại / gọi video | Cần libtgvoip + tgcalls và xử lý âm thanh–hình ảnh thời gian thực, là một khối lượng công việc riêng. |
+| Ghi và gửi tin thoại | Nghe tin thoại thì được, còn ghi cần bắt âm thanh và mã hoá Opus. |
+| Trò chuyện mật (secret chat) | TDLib hỗ trợ, nhưng phiên mật gắn với một thiết bị nên không phù hợp với bản cơ động chạy từ USB. |
+| Nhãn dán động chạy hoạt ảnh | `.tgs` là Lottie nén gzip; bản này hiện ảnh tĩnh thay vì phát hoạt ảnh. |
+| Thư mục chat của Telegram | Bộ lọc nhanh là của riêng ứng dụng, chưa đồng bộ thư mục đặt trên máy chủ. |
+
+Còn lại — nhắn tin, tệp, ảnh, nhãn dán, phản ứng, nhóm, kênh, danh bạ, tìm
+kiếm, proxy, đa tài khoản — đều dùng được.
 
 ## Tải về
 
@@ -203,6 +221,27 @@ Dữ liệu mẫu được nạp bằng **đúng định dạng JSON mà TDLib g
 `TdAccount::handleIncoming()` của bản chạy thật — nên công cụ này vừa xem được
 giao diện, vừa kiểm tra luôn phần phân tích dữ liệu. Ba ảnh trong `docs/anh`
 được tạo bằng chính công cụ này.
+
+## Kiểm tra
+
+Hai bộ kiểm tra, bật bằng `-DBUILD_TESTS=ON`:
+
+```bash
+cmake -S . -B build -G Ninja -DBUILD_TESTS=ON
+cmake --build build
+
+./build/bin/tuan_selftest                          # không cần TDLib
+TDJSON_PATH=/duong/dan/libtdjson.so ./build/bin/tuan_tdcheck
+```
+
+- `tuan_selftest` — 65 phép kiểm cho bộ tạo mã QR (đối chiếu ma trận chuẩn),
+  các hàm định dạng, tiện ích JSON và lớp phân tích dữ liệu TDLib. Chạy được ở
+  mọi máy, không cần thư viện ngoài.
+- `tuan_tdcheck` — kiểm **cầu nối tdjson với thư viện thật**: nạp được thư
+  viện, gọi được yêu cầu đồng bộ, tạo client rồi đẩy tham số khởi tạo và chờ
+  TDLib chuyển sang bước nhập số điện thoại. Ghi vào thư mục tạm và **không cần
+  tài khoản thật** — dùng luôn được để kiểm tra xem `libtdjson` bạn vừa đặt vào
+  có chạy không.
 
 ## Cấu trúc mã nguồn
 

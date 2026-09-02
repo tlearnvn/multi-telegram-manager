@@ -10,7 +10,16 @@ cmake_minimum_required(VERSION 3.19)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" _APP_VERSION_RAW)
 string(STRIP "${_APP_VERSION_RAW}" _APP_VERSION_FILE)
 
-set(APP_VERSION "${_APP_VERSION_FILE}" CACHE STRING "Phiên bản ứng dụng (ghi đè được từ CI)")
+# Chú ý: KHÔNG lưu giá trị mặc định vào cache. Nếu lưu, lần cấu hình sau sẽ dùng
+# lại số cũ trong cache dù file VERSION đã tăng — bản build sẽ khai sai phiên bản.
+# Muốn ghi đè thì truyền -DAPP_VERSION_OVERRIDE=1.2.3 (CI dùng cách này).
+set(APP_VERSION_OVERRIDE "" CACHE STRING "Ghi đè phiên bản (để trống = dùng file VERSION)")
+
+if(APP_VERSION_OVERRIDE STREQUAL "")
+    set(APP_VERSION "${_APP_VERSION_FILE}")
+else()
+    set(APP_VERSION "${APP_VERSION_OVERRIDE}")
+endif()
 
 if(NOT APP_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "APP_VERSION khong hop le: '${APP_VERSION}' (can dang MAJOR.MINOR.PATCH)")
@@ -122,6 +131,8 @@ set(APP_SOURCES
     src/ui/composer.h
     src/ui/emojipicker.cpp
     src/ui/emojipicker.h
+    src/ui/stickerpanel.cpp
+    src/ui/stickerpanel.h
     src/ui/logindialog.cpp
     src/ui/logindialog.h
     src/ui/settingsdialog.cpp
@@ -200,6 +211,15 @@ if(BUILD_TESTS)
     target_link_libraries(tuan_selftest PRIVATE tuan_core)
     if(UNIX AND NOT APPLE)
         set_target_properties(tuan_selftest PROPERTIES
+            INSTALL_RPATH "$ORIGIN/lib"
+            BUILD_WITH_INSTALL_RPATH TRUE)
+    endif()
+
+    # Kiểm tra cầu nối tdjson với thư viện thật (cần có libtdjson/tdjson.dll).
+    add_executable(tuan_tdcheck tools/tdcheck.cpp)
+    target_link_libraries(tuan_tdcheck PRIVATE tuan_core)
+    if(UNIX AND NOT APPLE)
+        set_target_properties(tuan_tdcheck PROPERTIES
             INSTALL_RPATH "$ORIGIN/lib"
             BUILD_WITH_INSTALL_RPATH TRUE)
     endif()

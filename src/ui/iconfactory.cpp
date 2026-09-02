@@ -306,6 +306,15 @@ void paintIcon(QPainter &p, Icons::Name name)
         p.drawArc(QRectF(2, 5.5, 20, 13), 180 * 16, 180 * 16);
         circle(12, 12, 3);
         break;
+    case N::Sticker:
+        // Miếng dán bong góc dưới phải, mặt cười ở giữa.
+        polyline({ { 4, 4.5 }, { 19.5, 4.5 }, { 19.5, 13.5 }, { 13.5, 19.5 },
+                   { 4, 19.5 }, { 4, 4.5 } });
+        polyline({ { 19.5, 13.5 }, { 13.5, 13.5 }, { 13.5, 19.5 } });
+        circle(9.3, 10, 0.95);
+        circle(14.2, 10, 0.95);
+        p.drawArc(QRectF(8.2, 9.8, 7.1, 5.6), 200 * 16, 140 * 16);
+        break;
     }
 }
 

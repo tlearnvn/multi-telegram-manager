@@ -20,7 +20,7 @@ enum class Name {
     Download, Close, User, Users, Megaphone, Moon, Sun, Trash, Edit,
     Reply, Copy, QrCode, Phone, Key, Logout, Dashboard, Broadcast,
     Archive, Image, File, Play, Info, Refresh, Warning, Link, Folder,
-    ChevronDown, ChevronUp, ChevronRight, Robot, Star, Save, Eye
+    ChevronDown, ChevronUp, ChevronRight, Robot, Star, Save, Eye, Sticker
 };
 
 //! Biểu tượng đơn sắc theo màu cho trước.

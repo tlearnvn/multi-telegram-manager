@@ -6,6 +6,7 @@
 class Composer;
 class EmojiPicker;
 class IconButton;
+class StickerPanel;
 class MessageDelegate;
 class MessageModel;
 class TdAccount;
@@ -79,6 +80,7 @@ private:
     QListView *m_list = nullptr;
     Composer *m_composer = nullptr;
     EmojiPicker *m_emoji = nullptr;
+    StickerPanel *m_stickers = nullptr;
 
     QWidget *m_header = nullptr;
     QWidget *m_avatarBox = nullptr;

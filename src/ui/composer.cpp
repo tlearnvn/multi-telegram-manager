@@ -198,12 +198,14 @@ Composer::Composer(QWidget *parent)
     row->setSpacing(4);
 
     m_emojiButton = new IconButton(Icons::Name::Emoji, tr("Biểu tượng cảm xúc"), 21, m_inputRow);
+    m_stickerButton = new IconButton(Icons::Name::Sticker, tr("Nhãn dán"), 21, m_inputRow);
     m_attachButton = new IconButton(Icons::Name::Attach, tr("Gửi tệp hoặc ảnh"), 21, m_inputRow);
     m_edit = new ComposerEdit(m_inputRow);
     m_sendButton = new IconButton(Icons::Name::Send, tr("Gửi (Enter)"), 21, m_inputRow);
     m_sendButton->setAccented(true);
 
     row->addWidget(m_emojiButton, 0, Qt::AlignBottom);
+    row->addWidget(m_stickerButton, 0, Qt::AlignBottom);
     row->addWidget(m_attachButton, 0, Qt::AlignBottom);
     row->addWidget(m_edit, 1);
     row->addWidget(m_sendButton, 0, Qt::AlignBottom);
@@ -227,6 +229,7 @@ Composer::Composer(QWidget *parent)
     connect(m_edit, &QPlainTextEdit::textChanged, this, &Composer::handleTextChanged);
     connect(m_attachButton, &QPushButton::clicked, this, &Composer::handleAttachClicked);
     connect(m_emojiButton, &QPushButton::clicked, this, &Composer::emojiPanelRequested);
+    connect(m_stickerButton, &QPushButton::clicked, this, &Composer::stickerPanelRequested);
     connect(m_infoClose, &QPushButton::clicked, this, [this] {
         if (m_editMessageId != 0) {
             setEditTarget(0, QString());
@@ -308,6 +311,7 @@ void Composer::setSendEnabled(bool enabled)
 {
     m_sendButton->setEnabled(enabled);
     m_attachButton->setEnabled(enabled);
+    m_stickerButton->setEnabled(enabled);
     m_edit->setReadOnly(!enabled);
 }
 

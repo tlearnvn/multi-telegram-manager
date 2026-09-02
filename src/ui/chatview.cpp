@@ -10,6 +10,7 @@
 #include "ui/emojipicker.h"
 #include "ui/flatbutton.h"
 #include "ui/messagedelegate.h"
+#include "ui/stickerpanel.h"
 #include "ui/theme.h"
 
 #include <QApplication>
@@ -197,6 +198,7 @@ void ChatView::buildUi()
     m_scrollDownButton->hide();
 
     m_emoji = new EmojiPicker(this);
+    m_stickers = new StickerPanel(this);
 
     m_readTimer = new QTimer(this);
     m_readTimer->setSingleShot(true);
@@ -216,6 +218,18 @@ void ChatView::buildUi()
     connect(m_emoji, &EmojiPicker::emojiChosen, this, [this](const QString &emoji) {
         m_composer->setText(m_composer->text() + emoji);
         m_composer->focusInput();
+    });
+    connect(m_composer, &Composer::stickerPanelRequested, this, [this] {
+        m_stickers->popupAbove(m_composer);
+    });
+    connect(m_stickers, &StickerPanel::stickerChosen, this,
+            [this](int fileId, const QString &emoji, int width, int height) {
+        if (!m_account || m_chatId == 0)
+            return;
+        m_account->sendSticker(m_chatId, fileId, emoji, width, height,
+                               m_composer->replyTarget());
+        m_composer->setReplyTarget(0, QString(), QString());
+        m_list->scrollToBottom();
     });
 
     connect(m_list, &QListView::clicked, this, &ChatView::onListClicked);
@@ -337,6 +351,7 @@ void ChatView::setAccount(TdAccount *account)
 
     m_account = account;
     m_model->setAccount(account);
+    m_stickers->setAccount(account);
     m_chatId = 0;
     m_model->setChat(0);
 
@@ -794,6 +809,31 @@ void ChatView::showMessageMenu(const QPoint &position)
                                    Format::oneLine(entry.text.isEmpty() ? entry.kindLabel()
                                                                         : entry.text, 90));
     });
+
+    // Phản ứng nhanh: bộ emoji Telegram dùng mặc định.
+    {
+        QMenu *reactions = menu.addMenu(tr("Phản ứng"));
+        static const char *kQuickReactions[] = {
+            "👍", "👎", "❤️", "🔥", "🎉", "😁", "😢", "🙏"
+        };
+        for (const char *raw : kQuickReactions) {
+            const QString emoji = QString::fromUtf8(raw);
+            reactions->addAction(emoji, this, [this, entry, emoji] {
+                m_account->addReaction(m_chatId, entry.id, emoji);
+            });
+        }
+        if (!entry.reactionSummary.isEmpty()) {
+            reactions->addSeparator();
+            for (const char *raw : kQuickReactions) {
+                const QString emoji = QString::fromUtf8(raw);
+                if (!entry.reactionSummary.contains(emoji))
+                    continue;
+                reactions->addAction(tr("Bỏ %1").arg(emoji), this, [this, entry, emoji] {
+                    m_account->removeReaction(m_chatId, entry.id, emoji);
+                });
+            }
+        }
+    }
 
     if (entry.canBeForwarded) {
         menu.addAction(Icons::icon(Icons::Name::Forward, c.textSecondary),

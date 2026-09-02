@@ -275,6 +275,7 @@ bool TdAccount::open()
     }
 
     m_bootstrapped = false;
+    m_parametersSent = false;
     m_closeRequested = false;
     setState(State::Starting);
 
@@ -604,6 +605,17 @@ void TdAccount::onAuthorizationState(const QJsonObject &authState)
 
 void TdAccount::sendTdlibParameters()
 {
+    /*
+     * TDLib báo waitTdlibParameters hai lần khi mở client: một lần tự đẩy về
+     * ngay lúc tạo client, một lần nữa là phản hồi cho getAuthorizationState mà
+     * open() gửi để "đánh thức" luồng update. Gửi tham số lần thứ hai sẽ bị trả
+     * lỗi "Unexpected setTdlibParameters" và hiện lên màn hình đăng nhập như một
+     * lỗi thật, nên chỉ gửi đúng một lần cho mỗi phiên client.
+     */
+    if (m_parametersSent)
+        return;
+    m_parametersSent = true;
+
     const SettingsStore &settings = SettingsStore::instance();
     const QString dbDir = AppPaths::ensureDir(AppPaths::accountDatabaseDir(m_slug));
     const QString filesDir = AppPaths::ensureDir(AppPaths::accountFilesDir(m_slug));
@@ -627,6 +639,13 @@ void TdAccount::sendTdlibParameters()
     request(payload, [this, payload](const QJsonObject &result, bool ok) {
         if (ok)
             return;
+
+        // "Unexpected setTdlibParameters" nghĩa là tham số đã được nhận rồi,
+        // không phải sai định dạng — thử lại chỉ sinh thêm một lỗi giả.
+        if (Json::str(result, QStringLiteral("message"))
+                .contains(QStringLiteral("Unexpected"), Qt::CaseInsensitive)) {
+            return;
+        }
 
         // TDLib cũ (< 1.8.6) nhận tham số trong đối tượng lồng "parameters".
         qCInfo(logTd) << m_slug << "thử lại setTdlibParameters theo định dạng cũ";
@@ -2072,6 +2091,57 @@ void TdAccount::pinMessage(qint64 chatId, qint64 messageId, bool pinned)
     });
 }
 
+void TdAccount::addReaction(qint64 chatId, qint64 messageId, const QString &emoji)
+{
+    QJsonObject reactionType = Json::request(QStringLiteral("reactionTypeEmoji"));
+    reactionType.insert(QStringLiteral("emoji"), emoji);
+
+    // TDLib ≥ 1.8.6 dùng addMessageReaction; bản cũ dùng setMessageReaction.
+    QJsonObject payload = Json::request(QStringLiteral("addMessageReaction"));
+    payload.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    payload.insert(QStringLiteral("message_id"), static_cast<double>(messageId));
+    payload.insert(QStringLiteral("reaction_type"), reactionType);
+    payload.insert(QStringLiteral("is_big"), false);
+    payload.insert(QStringLiteral("update_recent_reactions"), true);
+
+    request(payload, [this, chatId, messageId, emoji](const QJsonObject &result, bool ok) {
+        if (ok)
+            return;
+        QJsonObject legacy = Json::request(QStringLiteral("setMessageReaction"));
+        legacy.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+        legacy.insert(QStringLiteral("message_id"), static_cast<double>(messageId));
+        legacy.insert(QStringLiteral("reaction"), emoji);
+        legacy.insert(QStringLiteral("is_big"), false);
+        request(legacy, [this, result](const QJsonObject &legacyResult, bool legacyOk) {
+            if (legacyOk)
+                return;
+            // Báo lỗi của lần gọi API mới vì thông điệp thường rõ hơn.
+            const QString message = Json::str(result, QStringLiteral("message"),
+                                              Json::str(legacyResult,
+                                                        QStringLiteral("message")));
+            emit errorOccurred(QStringLiteral("Không thêm được phản ứng: %1").arg(message));
+        });
+    });
+}
+
+void TdAccount::removeReaction(qint64 chatId, qint64 messageId, const QString &emoji)
+{
+    QJsonObject reactionType = Json::request(QStringLiteral("reactionTypeEmoji"));
+    reactionType.insert(QStringLiteral("emoji"), emoji);
+
+    QJsonObject payload = Json::request(QStringLiteral("removeMessageReaction"));
+    payload.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    payload.insert(QStringLiteral("message_id"), static_cast<double>(messageId));
+    payload.insert(QStringLiteral("reaction_type"), reactionType);
+
+    request(payload, [this](const QJsonObject &result, bool ok) {
+        if (!ok) {
+            emit errorOccurred(QStringLiteral("Không bỏ được phản ứng: %1")
+                                   .arg(Json::str(result, QStringLiteral("message"))));
+        }
+    });
+}
+
 void TdAccount::sendChatAction(qint64 chatId, bool typing)
 {
     QJsonObject payload = Json::request(QStringLiteral("sendChatAction"));
@@ -2310,6 +2380,56 @@ void TdAccount::searchMessagesGlobal(const QString &query, const ResultHandler &
 void TdAccount::fetchContacts(const ResultHandler &handler)
 {
     request(Json::request(QStringLiteral("getContacts")), handler);
+}
+
+void TdAccount::fetchRecentStickers(const ResultHandler &handler)
+{
+    QJsonObject payload = Json::request(QStringLiteral("getRecentStickers"));
+    payload.insert(QStringLiteral("is_attached"), false);
+    request(payload, handler);
+}
+
+void TdAccount::fetchFavoriteStickers(const ResultHandler &handler)
+{
+    request(Json::request(QStringLiteral("getFavoriteStickers")), handler);
+}
+
+void TdAccount::sendSticker(qint64 chatId, int stickerFileId, const QString &emoji,
+                            int width, int height, qint64 replyToMessageId)
+{
+    if (stickerFileId == 0)
+        return;
+
+    // Nhãn dán đã nằm trên máy chủ nên chỉ cần tham chiếu lại mã tệp.
+    QJsonObject inputFile = Json::request(QStringLiteral("inputFileId"));
+    inputFile.insert(QStringLiteral("id"), stickerFileId);
+
+    QJsonObject content = Json::request(QStringLiteral("inputMessageSticker"));
+    content.insert(QStringLiteral("sticker"), inputFile);
+    content.insert(QStringLiteral("width"), width);
+    content.insert(QStringLiteral("height"), height);
+    content.insert(QStringLiteral("emoji"), emoji);
+
+    QJsonObject payload = Json::request(QStringLiteral("sendMessage"));
+    payload.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    payload.insert(QStringLiteral("input_message_content"), content);
+    if (replyToMessageId != 0) {
+        payload.insert(QStringLiteral("reply_to_message_id"), static_cast<double>(replyToMessageId));
+        QJsonObject replyTo = Json::request(QStringLiteral("inputMessageReplyToMessage"));
+        replyTo.insert(QStringLiteral("message_id"), static_cast<double>(replyToMessageId));
+        payload.insert(QStringLiteral("reply_to"), replyTo);
+    }
+
+    request(payload, [this, chatId](const QJsonObject &result, bool ok) {
+        if (!ok) {
+            emit errorOccurred(QStringLiteral("Không gửi được nhãn dán: %1")
+                                   .arg(Json::str(result, QStringLiteral("message"))));
+            return;
+        }
+        const MessageEntry entry = parseMessage(result);
+        rememberMessage(entry);
+        emit newMessageArrived(chatId, entry.id);
+    });
 }
 
 void TdAccount::createPrivateChat(qint64 userId, const ResultHandler &handler)

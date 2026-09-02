@@ -127,6 +127,11 @@ public:
                          const QList<qint64> &messageIds, bool asCopy);
     void viewMessages(qint64 chatId, const QList<qint64> &messageIds);
     void pinMessage(qint64 chatId, qint64 messageId, bool pinned);
+
+    //! Thêm phản ứng emoji vào tin nhắn (hỗ trợ cả API cũ và mới của TDLib).
+    void addReaction(qint64 chatId, qint64 messageId, const QString &emoji);
+    //! Bỏ một phản ứng đã thêm.
+    void removeReaction(qint64 chatId, qint64 messageId, const QString &emoji);
     void sendChatAction(qint64 chatId, bool typing);
     void saveDraft(qint64 chatId, const QString &text, qint64 replyToMessageId);
 
@@ -150,6 +155,13 @@ public:
     void searchMessagesInChat(qint64 chatId, const QString &query, const ResultHandler &handler);
     void searchMessagesGlobal(const QString &query, const ResultHandler &handler);
     void fetchContacts(const ResultHandler &handler);
+
+    //! Nhãn dán dùng gần đây / đánh dấu yêu thích.
+    void fetchRecentStickers(const ResultHandler &handler);
+    void fetchFavoriteStickers(const ResultHandler &handler);
+    //! Gửi nhãn dán đã có trên máy chủ (dùng lại mã tệp của nó).
+    void sendSticker(qint64 chatId, int stickerFileId, const QString &emoji,
+                     int width, int height, qint64 replyToMessageId = 0);
     void createPrivateChat(qint64 userId, const ResultHandler &handler);
     void createGroup(const QString &title, const QList<qint64> &userIds, const ResultHandler &handler);
     void createChannel(const QString &title, const QString &description, bool megagroup,
@@ -264,6 +276,7 @@ private:
     int m_unreadChats = 0;
     int m_unreadMessages = 0;
     bool m_bootstrapped = false;
+    bool m_parametersSent = false;
     //! Đã gửi "close" và đang chờ TDLib xác nhận đã ghi xong cơ sở dữ liệu.
     bool m_closeRequested = false;
     QTimer *m_typingTimer = nullptr;

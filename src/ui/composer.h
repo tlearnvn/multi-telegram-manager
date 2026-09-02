@@ -76,6 +76,7 @@ signals:
     void filesRequested(const QStringList &paths);
     void typingActive();
     void emojiPanelRequested();
+    void stickerPanelRequested();
     void replyCleared();
     void editCleared();
     void voiceNoteRequested();
@@ -95,6 +96,7 @@ private:
     QLabel *m_infoBody = nullptr;
     IconButton *m_infoClose = nullptr;
     IconButton *m_emojiButton = nullptr;
+    IconButton *m_stickerButton = nullptr;
     IconButton *m_attachButton = nullptr;
     IconButton *m_sendButton = nullptr;
     QLabel *m_blockedLabel = nullptr;

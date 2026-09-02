@@ -24,9 +24,13 @@ on:
         default: true
 
 # Đẩy mã liên tiếp thì chỉ giữ lần chạy mới nhất cho khỏi tốn runner.
+# KHÔNG huỷ lần chạy đang dở: TDLib mất khoảng 45 phút để biên dịch và cache chỉ
+# được ghi khi job kết thúc. Nếu huỷ giữa đường thì cache vĩnh viễn trống và mọi
+# lần đẩy mã sau đó lại phải build TDLib từ đầu. Xếp hàng chờ thì lần chạy trước
+# ghi được cache, lần sau chỉ mất vài phút.
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   QT_VERSION: 6.4.3
@@ -155,12 +159,24 @@ jobs:
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DAPP_VERSION="${{ needs.version.outputs.version }}" \
+            -DAPP_VERSION_OVERRIDE="${{ needs.version.outputs.version }}" \
             -DBUILD_TESTS=ON -DBUILD_UI_PREVIEW=ON
           cmake --build build -j"$(nproc)"
 
       - name: Chạy bộ kiểm tra tự động
         run: ./build/bin/tuan_selftest
+
+      - name: Kiểm tra cầu nối TDLib
+        run: |
+          # Chỉ chạy được khi build TDLib thành công. Thử luôn với thư viện thật:
+          # nạp tdjson, tạo client, đẩy tham số khởi tạo rồi chờ TDLib chuyển
+          # sang bước nhập số điện thoại. Không cần tài khoản thật.
+          if compgen -G "$HOME/tdlib-prefix/lib/libtdjson.so*" > /dev/null; then
+            lib=$(ls "$HOME"/tdlib-prefix/lib/libtdjson.so* | head -1)
+            TDJSON_PATH="$lib" ./build/bin/tuan_tdcheck
+          else
+            echo "Bỏ qua: chưa build được TDLib trong lần chạy này."
+          fi
 
       - name: Dựng ảnh xem trước giao diện
         run: |
@@ -276,7 +292,7 @@ jobs:
         shell: cmd
         run: |
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64 ^
-            -DAPP_VERSION=${{ needs.version.outputs.version }} || exit /b 1
+            -DAPP_VERSION_OVERRIDE=${{ needs.version.outputs.version }} || exit /b 1
           cmake --build build --config Release --parallel || exit /b 1
           dir build\bin
 
