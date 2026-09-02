@@ -194,7 +194,8 @@ Số phiên bản trong tệp [`VERSION.txt`](VERSION.txt) tự tăng khi mã ng
   commit chạm vào `src/`, `cmake/`, `packaging/` hay `CMakeLists.txt` sẽ tự
   tăng số **PATCH**.
 - **GitHub Actions** — workflow *Build* cũng tự tăng PATCH cho mỗi lần đẩy mã
-  rồi commit lại `VERSION.txt` kèm `[skip ci]`.
+  rồi commit lại `VERSION.txt` kèm `[skip ci]`. Nếu git hook đã tăng ở máy bạn
+  thì CI nhận ra và không tăng thêm, nên số không bị nhảy hai bậc.
 - Ngoài ra mỗi bản build còn nhúng **số build** (số commit tính từ đầu lịch
   sử), **hash commit** và **ngày build**, nên hai bản build khác nhau không bao
   giờ trùng chuỗi phiên bản:

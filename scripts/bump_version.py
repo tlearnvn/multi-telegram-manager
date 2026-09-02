@@ -158,6 +158,16 @@ def main() -> int:
         paths = changed_paths(args.staged, args.diff_base)
         if paths is None and not args.staged:
             print("bump_version: không xác định được thay đổi, tăng phiên bản cho chắc")
+
+        # Nếu chính tệp phiên bản đã đổi trong khoảng so sánh thì git hook cục bộ
+        # (hoặc người dùng) đã tăng rồi — CI tăng thêm lần nữa sẽ nhảy số vô ích.
+        if paths is not None and not args.staged and VERSION_FILE.name in paths:
+            print(
+                "bump_version: phiên bản đã được tăng trong lần đẩy này, giữ nguyên "
+                + ".".join(str(part) for part in current)
+            )
+            return 0
+
         if not source_touched(paths):
             print(
                 "bump_version: không có thay đổi trong mã nguồn, giữ nguyên "

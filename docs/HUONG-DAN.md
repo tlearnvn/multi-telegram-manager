@@ -154,6 +154,8 @@ của từng tài khoản. Bấm phải vào một dòng để dọn bộ đệm
 | Xoá tin | Bấm phải → *Xoá*, chọn *chỉ ở máy tôi* hay *ở mọi người* |
 | Chuyển tiếp | Bấm phải → *Chuyển tiếp*, chọn nơi nhận (kể cả tài khoản khác) |
 | Chọn nhiều tin | Giữ `Ctrl` hoặc `Shift` rồi bấm; thanh công cụ hiện ra ở trên |
+| Thả phản ứng | Bấm phải → *Phản ứng* → chọn emoji; chọn lại emoji đó để bỏ |
+| Gửi nhãn dán | Bấm biểu tượng miếng dán cạnh mặt cười, chọn tab *Gần đây* hoặc *Yêu thích* |
 | Gửi tệp | Bấm biểu tượng kẹp giấy, hoặc **kéo–thả** tệp vào ô soạn tin |
 | Gửi ảnh trong clipboard | `Ctrl+V` ngay trong ô soạn tin |
 | Tải ảnh / tệp về | Bấm vào ảnh hoặc thẻ tệp; bấm lại để mở |
