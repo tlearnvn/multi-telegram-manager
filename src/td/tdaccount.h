@@ -79,6 +79,9 @@ public:
     QString qrLink() const { return m_qrLink; }
     bool isReady() const { return m_state == State::Ready; }
 
+    //! true khi client TDLib đã đóng hẳn (an toàn để thoát ứng dụng).
+    bool isClosed() const { return m_clientId < 0 || m_state == State::Closed; }
+
     UserEntry me() const;
     qint64 myId() const { return m_myId; }
     QString displayName() const;               //!< nhãn hoặc tên Telegram
@@ -260,6 +263,8 @@ private:
     int m_unreadChats = 0;
     int m_unreadMessages = 0;
     bool m_bootstrapped = false;
+    //! Đã gửi "close" và đang chờ TDLib xác nhận đã ghi xong cơ sở dữ liệu.
+    bool m_closeRequested = false;
     QTimer *m_typingTimer = nullptr;
     qint64 m_typingChatId = 0;
 };

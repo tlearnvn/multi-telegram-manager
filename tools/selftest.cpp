@@ -16,9 +16,11 @@
 #include "core/formatting.h"
 #include "core/jsonutil.h"
 #include "core/qrcode.h"
+#include "td/accountmanager.h"
 #include "td/tdaccount.h"
 
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStringList>
@@ -379,6 +381,20 @@ int main(int argc, char *argv[])
         account.handleIncoming(json(R"({ "@type": "error", "code": 400,
                                          "message": "Có lỗi" })"));
         check(true, QStringLiteral("dữ liệu thiếu/sai không gây sập"));
+    }
+
+    // -----------------------------------------------------------------------
+    section("Trình tự thoát an toàn");
+
+    {
+        // Không có TDLib thì client chưa từng mở, closeAllAndWait phải trả về
+        // ngay chứ không treo đủ thời gian chờ.
+        AccountManager manager;
+        QElapsedTimer timer;
+        timer.start();
+        const bool closed = manager.closeAllAndWait(2000);
+        check(closed, QStringLiteral("đóng xong khi không có client nào"));
+        check(timer.elapsed() < 1000, QStringLiteral("không chờ vô ích"));
     }
 
     // -----------------------------------------------------------------------

@@ -6,8 +6,12 @@
 #include "td/tdaccount.h"
 #include "td/tdtransport.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
+#include <QElapsedTimer>
+#include <QEventLoop>
+#include <QThread>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -206,6 +210,36 @@ void AccountManager::setOnlineAll(bool online)
         if (account->isReady())
             account->setOnline(online);
     }
+}
+
+bool AccountManager::closeAllAndWait(int msTimeout)
+{
+    for (TdAccount *account : m_ordered)
+        account->close();
+
+    QElapsedTimer timer;
+    timer.start();
+
+    while (timer.elapsed() < msTimeout) {
+        bool allClosed = true;
+        for (const TdAccount *account : m_ordered) {
+            if (!account->isClosed()) {
+                allClosed = false;
+                break;
+            }
+        }
+        if (allClosed) {
+            qCInfo(logApp) << "Mọi client TDLib đã đóng sau" << timer.elapsed() << "ms";
+            return true;
+        }
+        // Phản hồi của TDLib tới luồng này qua kết nối queued nên phải bơm
+        // vòng lặp sự kiện, không được ngủ suông.
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        QThread::msleep(10);
+    }
+
+    qCWarning(logApp) << "Hết thời gian chờ TDLib đóng client, vẫn thoát";
+    return false;
 }
 
 void AccountManager::onTransportMessage(int clientId, const QJsonObject &object)

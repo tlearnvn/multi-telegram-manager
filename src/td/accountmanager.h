@@ -61,6 +61,17 @@ public:
     //! Đặt trạng thái trực tuyến cho mọi tài khoản.
     void setOnlineAll(bool online);
 
+    /*!
+     * \brief Đóng mọi client TDLib rồi chờ xác nhận, tối đa \a msTimeout ms.
+     *
+     * Gọi trước khi thoát ứng dụng: TDLib chỉ ghi xong cơ sở dữ liệu sau khi
+     * xử lý xong yêu cầu "close" và gửi lại authorizationStateClosed. Thoát
+     * sớm hơn có thể để lại dữ liệu ghi dở.
+     *
+     * Trả về true nếu mọi client đã đóng hẳn trong thời gian cho phép.
+     */
+    bool closeAllAndWait(int msTimeout = 4000);
+
 signals:
     void accountsChanged();
     void activeAccountChanged(TdAccount *account);

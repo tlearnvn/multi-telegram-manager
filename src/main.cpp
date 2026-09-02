@@ -115,10 +115,15 @@ int main(int argc, char *argv[])
 
     const int code = app.exec();
 
+    // Thứ tự thoát quan trọng: báo offline → đóng client và CHỜ TDLib ghi xong
+    // cơ sở dữ liệu → mới dừng luồng nhận, vì chính luồng đó mang xác nhận về.
     manager.setOnlineAll(false);
     manager.saveToDisk();
     SettingsStore::instance().flush();
+    manager.closeAllAndWait();
     TdTransport::instance().stop();
+
+    qInfo("Đã thoát an toàn");
     Logging::shutdown();
     return code;
 }

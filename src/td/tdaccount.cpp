@@ -256,21 +256,26 @@ QString TdAccount::displayName() const
 
 bool TdAccount::open()
 {
-    if (m_clientId >= 0 && m_state != State::Closed && m_state != State::Failed)
+    if (m_clientId >= 0 && !m_closeRequested
+        && m_state != State::Closed && m_state != State::Failed) {
         return true;
+    }
 
     if (!TdTransport::instance().start()) {
         setError(QStringLiteral("Chưa nạp được thư viện TDLib."));
+        setState(State::Failed);
         return false;
     }
 
     m_clientId = TdLoader::instance().createClientId();
     if (m_clientId < 0) {
         setError(QStringLiteral("Không tạo được client TDLib."));
+        setState(State::Failed);
         return false;
     }
 
     m_bootstrapped = false;
+    m_closeRequested = false;
     setState(State::Starting);
 
     // Gửi một yêu cầu bất kỳ để TDLib bắt đầu bơm update về client mới.
@@ -280,10 +285,14 @@ bool TdAccount::open()
 
 void TdAccount::close()
 {
-    if (m_clientId < 0)
+    if (m_clientId < 0 || m_closeRequested)
         return;
+
+    // Không đặt ngay trạng thái Closed: TDLib còn phải ghi xong cơ sở dữ liệu
+    // rồi mới gửi authorizationStateClosed. Thoát trước lúc đó có thể để lại
+    // cơ sở dữ liệu ghi dở.
+    m_closeRequested = true;
     send(Json::request(QStringLiteral("close")));
-    setState(State::Closed);
 }
 
 void TdAccount::logOut()
@@ -585,6 +594,7 @@ void TdAccount::onAuthorizationState(const QJsonObject &authState)
         // chờ authorizationStateClosed
     } else if (type == QStringLiteral("authorizationStateClosed")) {
         m_clientId = -1;
+        m_closeRequested = false;
         m_users.clear();
         m_chats.clear();
         m_messages.clear();
