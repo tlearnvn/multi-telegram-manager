@@ -45,6 +45,31 @@ needed_libs() {
     readelf -d "$1" 2>/dev/null | awk -F'[][]' '/\(NEEDED\)/ {print $2}'
 }
 
+# Copy một thư viện theo tên mà trình nạp tìm (SONAME, ví dụ libicudata.so.74).
+#
+# Trong thư mục Qt, tên đó thường là symlink trỏ tới tệp thật có thêm số phụ
+# (libicudata.so.74.2). Nếu cứ "cp -L" theo SONAME thì được một tệp thật, rồi
+# bước gom ICU bên dưới lại copy tệp thật lần nữa dưới tên đầy đủ — riêng
+# libicudata đã 30 MB nên gói phình thêm ~35 MB vô ích. Vì vậy: copy tệp thật
+# đúng một lần, còn SONAME chỉ là symlink.
+copy_lib_by_soname() {
+    local name=$1
+    local src="$QT_LIB_DIR/$name"
+    [[ -e "$src" ]] || return 1
+
+    local real real_name
+    real=$(readlink -f "$src")
+    real_name=$(basename "$real")
+
+    if [[ ! -f "$OUT_DIR/lib/$real_name" ]]; then
+        cp -L "$real" "$OUT_DIR/lib/$real_name"
+    fi
+    if [[ "$real_name" != "$name" && ! -e "$OUT_DIR/lib/$name" ]]; then
+        ln -sf "$real_name" "$OUT_DIR/lib/$name"
+    fi
+    return 0
+}
+
 copy_qt_deps() {
     local target=$1
     local name
@@ -52,8 +77,7 @@ copy_qt_deps() {
         [[ -n "$name" ]] || continue
         case "$name" in
             libQt6*|libicu*)
-                if [[ ! -f "$OUT_DIR/lib/$name" && -e "$QT_LIB_DIR/$name" ]]; then
-                    cp -L "$QT_LIB_DIR/$name" "$OUT_DIR/lib/$name"
+                if [[ ! -e "$OUT_DIR/lib/$name" ]] && copy_lib_by_soname "$name"; then
                     # Thư viện Qt lại cần thư viện Qt khác — đệ quy tiếp.
                     copy_qt_deps "$OUT_DIR/lib/$name"
                 fi
@@ -69,9 +93,7 @@ copy_qt_deps "$OUT_DIR/$BINARY_NAME"
 for base in libicudata libicui18n libicuuc; do
     for candidate in "$QT_LIB_DIR/$base".so.*; do
         [[ -e "$candidate" ]] || continue
-        target_name=$(basename "$candidate")
-        [[ -f "$OUT_DIR/lib/$target_name" ]] && continue
-        cp -P "$candidate" "$OUT_DIR/lib/$target_name"
+        copy_lib_by_soname "$(basename "$candidate")" || true
     done
 done
 
