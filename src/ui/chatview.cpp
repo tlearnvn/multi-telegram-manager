@@ -25,6 +25,7 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPointer>
+#include <QResizeEvent>
 #include <QScrollBar>
 #include <QStyleOptionViewItem>
 #include <QTimer>
@@ -122,7 +123,7 @@ void ChatView::buildUi()
     m_searchInput->setPlaceholderText(tr("Từ khoá cần tìm trong cuộc trò chuyện này…"));
     m_searchStatus = new QLabel(m_searchBar);
     m_searchPrev = new IconButton(Icons::Name::ChevronDown, tr("Kết quả cũ hơn"), 18, m_searchBar);
-    m_searchNext = new IconButton(Icons::Name::ChevronDown, tr("Kết quả mới hơn"), 18, m_searchBar);
+    m_searchNext = new IconButton(Icons::Name::ChevronUp, tr("Kết quả mới hơn"), 18, m_searchBar);
     auto *searchClose = new IconButton(Icons::Name::Close, tr("Đóng"), 18, m_searchBar);
     searchLayout->addWidget(m_searchInput, 1);
     searchLayout->addWidget(m_searchStatus);
@@ -619,6 +620,20 @@ void ChatView::openMedia(const MessageEntry &entry)
     }
 }
 
+void ChatView::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    positionScrollDownButton();
+}
+
+void ChatView::positionScrollDownButton()
+{
+    if (!m_scrollDownButton->isVisible())
+        return;
+    m_scrollDownButton->move(qMax(0, m_list->viewport()->width() - 54),
+                             qMax(0, m_list->viewport()->height() - 54));
+}
+
 void ChatView::onScrolled(int value)
 {
     QScrollBar *bar = m_list->verticalScrollBar();
@@ -635,10 +650,7 @@ void ChatView::onScrolled(int value)
     }
 
     m_scrollDownButton->setVisible(!isNearBottom() && m_model->rowCount() > 0);
-    if (m_scrollDownButton->isVisible()) {
-        m_scrollDownButton->move(m_list->viewport()->width() - 54,
-                                 m_list->viewport()->height() - 54);
-    }
+    positionScrollDownButton();
 
     m_readTimer->start();
 }

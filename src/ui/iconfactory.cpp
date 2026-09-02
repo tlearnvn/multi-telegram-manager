@@ -112,6 +112,9 @@ void paintIcon(QPainter &p, Icons::Name name)
     case N::ChevronDown:
         polyline({ { 6, 10 }, { 12, 16 }, { 18, 10 } });
         break;
+    case N::ChevronUp:
+        polyline({ { 6, 15 }, { 12, 9 }, { 18, 15 } });
+        break;
     case N::Microphone:
         roundRect(9, 3, 6, 11, 3);
         p.drawArc(QRectF(5.5, 8, 13, 11), 180 * 16, 180 * 16);

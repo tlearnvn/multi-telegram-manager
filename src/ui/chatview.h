@@ -38,6 +38,9 @@ public:
     void openSearchBar();
     void jumpToMessage(qint64 messageId);
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 signals:
     void forwardRequested(qint64 fromChatId, const QList<qint64> &messageIds);
     void chatInfoRequested(qint64 chatId);
@@ -61,6 +64,7 @@ private slots:
 private:
     void buildUi();
     void updateComposerState();
+    void positionScrollDownButton();
     void openMedia(const class MessageEntry &entry);
     void copySelection();
     void deleteSelection();
