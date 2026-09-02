@@ -5,9 +5,9 @@ cmake_minimum_required(VERSION 3.19)
 #  Trình khách Telegram đa tài khoản, viết bằng C++/Qt 6.
 # ---------------------------------------------------------------------------
 
-# Phiên bản được đọc từ file VERSION ở gốc dự án. CI (hoặc git hook) tự tăng
+# Phiên bản được đọc từ file VERSION.txt ở gốc dự án. CI (hoặc git hook) tự tăng
 # số patch mỗi khi mã nguồn thay đổi, nên mọi bản build đều có phiên bản riêng.
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" _APP_VERSION_RAW)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION.txt" _APP_VERSION_RAW)
 string(STRIP "${_APP_VERSION_RAW}" _APP_VERSION_FILE)
 
 # Chú ý: KHÔNG lưu giá trị mặc định vào cache. Nếu lưu, lần cấu hình sau sẽ dùng
@@ -37,7 +37,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+# CHÚ Ý: không bật CMAKE_INCLUDE_CURRENT_DIR. Nó đưa gốc dự án vào đường dẫn
+# include của mọi target, và trên Windows (hệ thống tệp không phân biệt chữ
+# hoa/thường) thì "#include <version>" của thư viện chuẩn C++ sẽ trúng tệp
+# VERSION ở gốc dự án — mọi tệp nguồn đều lỗi C2059 ngay dòng 1. Các target đã
+# tự khai đủ đường dẫn include nên không cần biến này. (Tệp phiên bản cũng đã
+# đổi tên thành VERSION.txt để không còn khả năng trùng.)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Kiểu build" FORCE)
@@ -253,7 +259,7 @@ install(TARGETS ${APP_EXECUTABLE_NAME}
 install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
-    "${CMAKE_CURRENT_SOURCE_DIR}/VERSION"
+    "${CMAKE_CURRENT_SOURCE_DIR}/VERSION.txt"
     DESTINATION .)
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/docs/HUONG-DAN.md"

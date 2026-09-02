@@ -10,4 +10,4 @@ cp "$ROOT/scripts/hooks/pre-commit" "$HOOK_DIR/pre-commit"
 chmod +x "$HOOK_DIR/pre-commit"
 
 echo "Đã cài hook pre-commit vào $HOOK_DIR"
-echo "Từ giờ mỗi commit chạm vào src/ sẽ tự tăng số patch trong VERSION."
+echo "Từ giờ mỗi commit chạm vào src/ sẽ tự tăng số patch trong VERSION.txt."

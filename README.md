@@ -188,13 +188,13 @@ tham số khởi tạo cũ (< 1.8.6) và mới.
 
 ## Phiên bản tự tăng
 
-Số phiên bản trong tệp [`VERSION`](VERSION) tự tăng khi mã nguồn thay đổi:
+Số phiên bản trong tệp [`VERSION.txt`](VERSION.txt) tự tăng khi mã nguồn thay đổi:
 
 - **Git hook** — cài một lần bằng `./scripts/install-hooks.sh`; từ đó mỗi
   commit chạm vào `src/`, `cmake/`, `packaging/` hay `CMakeLists.txt` sẽ tự
   tăng số **PATCH**.
 - **GitHub Actions** — workflow *Build* cũng tự tăng PATCH cho mỗi lần đẩy mã
-  rồi commit lại `VERSION` kèm `[skip ci]`.
+  rồi commit lại `VERSION.txt` kèm `[skip ci]`.
 - Ngoài ra mỗi bản build còn nhúng **số build** (số commit tính từ đầu lịch
   sử), **hash commit** và **ngày build**, nên hai bản build khác nhau không bao
   giờ trùng chuỗi phiên bản:

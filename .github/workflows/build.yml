@@ -1,7 +1,7 @@
 name: Build
 
 # Mỗi lần đẩy mã lên nhánh:
-#   1. tự tăng số patch trong VERSION (đúng yêu cầu "phiên bản tự bump khi update code"),
+#   1. tự tăng số patch trong VERSION.txt (đúng yêu cầu "phiên bản tự bump khi update code"),
 #   2. build bản Windows 64-bit và Debian/Linux 64-bit,
 #   3. đóng gói bản portable (dữ liệu nằm cạnh tệp chạy) rồi tải lên artifacts.
 #
@@ -23,11 +23,9 @@ on:
         type: boolean
         default: true
 
-# Đẩy mã liên tiếp thì chỉ giữ lần chạy mới nhất cho khỏi tốn runner.
-# KHÔNG huỷ lần chạy đang dở: TDLib mất khoảng 45 phút để biên dịch và cache chỉ
-# được ghi khi job kết thúc. Nếu huỷ giữa đường thì cache vĩnh viễn trống và mọi
-# lần đẩy mã sau đó lại phải build TDLib từ đầu. Xếp hàng chờ thì lần chạy trước
-# ghi được cache, lần sau chỉ mất vài phút.
+# KHÔNG huỷ lần chạy đang dở: TDLib mất 45–55 phút để biên dịch. Huỷ giữa đường
+# thì cache vĩnh viễn trống và mọi lần đẩy mã sau đó lại phải build lại từ đầu.
+# Xếp hàng chờ thì lần chạy trước ghi được cache, lần sau chỉ mất vài phút.
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: false
@@ -80,7 +78,7 @@ jobs:
           if [ "$before" != "$after" ]; then
             git config user.name  "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add VERSION
+            git add VERSION.txt
             git commit -m "chore(version): $after [skip ci]"
             for attempt in 1 2 3 4; do
               if git push origin "HEAD:${GITHUB_REF#refs/heads/}"; then
@@ -130,14 +128,19 @@ jobs:
           echo "sha=${sha:-unknown}" >> "$GITHUB_OUTPUT"
           echo "TDLib $sha"
 
+      # Dùng restore + save rời nhau chứ không dùng actions/cache: bước "post" của
+      # actions/cache chỉ ghi khi job THÀNH CÔNG, nên một lỗi biên dịch ở bước
+      # sau sẽ xoá sạch gần một giờ build TDLib. Ghi cache ngay sau khi build
+      # xong thì lần chạy kế tiếp luôn có sẵn, dù job này có đỏ hay không.
       - name: Lấy TDLib từ cache
         id: tdlib_cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/tdlib-prefix
           key: tdlib-linux-${{ steps.tdlib_ref.outputs.sha }}-v1
 
       - name: Build TDLib (chỉ khi cache trống)
+        id: tdlib_build
         if: steps.tdlib_cache.outputs.cache-hit != 'true' && github.event.inputs.build_tdlib != 'false'
         continue-on-error: true
         run: |
@@ -154,6 +157,17 @@ jobs:
           mkdir -p "$HOME/tdlib-prefix/lib"
           find /tmp/td/build -name 'libtdjson.so*' -exec cp -L {} "$HOME/tdlib-prefix/lib/" \;
           ls -la "$HOME/tdlib-prefix/lib" || true
+          # Chỉ báo "xong" khi thư viện thật sự có mặt — bước ghi cache dựa vào đây.
+          if compgen -G "$HOME/tdlib-prefix/lib/libtdjson.so*" > /dev/null; then
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ghi TDLib vào cache
+        if: steps.tdlib_build.outputs.built == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/tdlib-prefix
+          key: tdlib-linux-${{ steps.tdlib_ref.outputs.sha }}-v1
 
       - name: Build ứng dụng
         run: |
@@ -199,7 +213,7 @@ jobs:
           OUT="dist/TuanMultiTeleClient-${{ needs.version.outputs.version }}-linux-x64"
           ./packaging/linux/make-portable.sh build/bin/TuanMultiTeleClient "$QT_ROOT_DIR" "$OUT"
 
-          cp README.md LICENSE VERSION "$OUT/"
+          cp README.md LICENSE VERSION.txt "$OUT/"
           cp docs/HUONG-DAN.md "$OUT/" 2>/dev/null || true
 
           # Kèm TDLib nếu build được.
@@ -265,14 +279,17 @@ jobs:
           sha=$(git ls-remote https://github.com/tdlib/td.git "${{ env.TDLIB_REF }}" | cut -f1)
           echo "sha=${sha:-unknown}" >> "$GITHUB_OUTPUT"
 
+      # Xem ghi chú ở job Linux: ghi cache ngay sau khi build xong, đừng để bước
+      # "post" của actions/cache bỏ qua vì job đỏ.
       - name: Lấy TDLib từ cache
         id: tdlib_cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: C:\tdlib-prefix
           key: tdlib-windows-${{ steps.tdlib_ref.outputs.sha }}-v1
 
       - name: Build TDLib (chỉ khi cache trống)
+        id: tdlib_build
         if: steps.tdlib_cache.outputs.cache-hit != 'true' && github.event.inputs.build_tdlib != 'false'
         continue-on-error: true
         shell: cmd
@@ -287,6 +304,16 @@ jobs:
           mkdir C:\tdlib-prefix\bin 2>nul
           for /r C:\td\build %%f in (tdjson.dll) do copy /y "%%f" C:\tdlib-prefix\bin\
           dir C:\tdlib-prefix\bin
+          rem Mọi lệnh trên đều "exit /b 0" khi lỗi để job vẫn đi tiếp, nên phải
+          rem tự kiểm tra tệp mới biết là build được. Bước ghi cache dựa vào đây.
+          if exist C:\tdlib-prefix\bin\tdjson.dll echo built=true>>%GITHUB_OUTPUT%
+
+      - name: Ghi TDLib vào cache
+        if: steps.tdlib_build.outputs.built == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:\tdlib-prefix
+          key: tdlib-windows-${{ steps.tdlib_ref.outputs.sha }}-v1
 
       - name: Build ứng dụng
         shell: cmd
@@ -310,7 +337,7 @@ jobs:
               --no-opengl-sw --no-compiler-runtime `
               "$out\TuanMultiTeleClient.exe"
 
-          Copy-Item README.md, LICENSE, VERSION $out
+          Copy-Item README.md, LICENSE, VERSION.txt $out
           if (Test-Path docs\HUONG-DAN.md) { Copy-Item docs\HUONG-DAN.md $out }
 
           # Kèm TDLib nếu build được.

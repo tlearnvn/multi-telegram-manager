@@ -1,5 +1,5 @@
 #!/bin/sh
-# Tự tăng số PATCH trong VERSION khi commit có thay đổi mã nguồn.
+# Tự tăng số PATCH trong VERSION.txt khi commit có thay đổi mã nguồn.
 # Cài bằng: ./scripts/install-hooks.sh
 
 if command -v python3 >/dev/null 2>&1; then

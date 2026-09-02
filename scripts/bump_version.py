@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tự tăng số phiên bản trong tệp VERSION.
+"""Tự tăng số phiên bản trong tệp VERSION.txt.
 
 Dùng ở hai nơi:
 
@@ -13,7 +13,7 @@ Cách dùng:
     python3 scripts/bump_version.py --auto --diff-base HEAD~1
     python3 scripts/bump_version.py --print
 
-Tệp VERSION chứa đúng một dòng dạng MAJOR.MINOR.PATCH.
+Tệp VERSION.txt chứa đúng một dòng dạng MAJOR.MINOR.PATCH.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import subprocess
 import sys
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-VERSION_FILE = REPO_ROOT / "VERSION"
+VERSION_FILE = REPO_ROOT / "VERSION.txt"
 
 # Chỉ những thay đổi ở các đường dẫn này mới coi là "cập nhật mã nguồn".
 WATCHED_PREFIXES = (
@@ -45,7 +45,7 @@ def read_version() -> tuple[int, int, int]:
     raw = VERSION_FILE.read_text(encoding="utf-8").strip()
     match = VERSION_PATTERN.match(raw)
     if not match:
-        raise SystemExit(f"VERSION không hợp lệ: {raw!r} (cần MAJOR.MINOR.PATCH)")
+        raise SystemExit(f"VERSION.txt không hợp lệ: {raw!r} (cần MAJOR.MINOR.PATCH)")
     return tuple(int(part) for part in match.groups())  # type: ignore[return-value]
 
 
@@ -170,7 +170,7 @@ def main() -> int:
 
     # Với git hook, đưa luôn VERSION vào commit đang tạo.
     if args.staged:
-        subprocess.run(["git", "add", "VERSION"], cwd=REPO_ROOT, check=False)
+        subprocess.run(["git", "add", "VERSION.txt"], cwd=REPO_ROOT, check=False)
 
     return 0
 
