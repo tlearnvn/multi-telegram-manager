@@ -192,6 +192,22 @@ if(UNIX AND NOT APPLE)
         BUILD_WITH_INSTALL_RPATH TRUE)
 endif()
 
+# --- Bộ kiểm tra tự động (không đóng gói kèm) -----------------------------
+option(BUILD_TESTS "Build bộ kiểm tra tự động" OFF)
+
+if(BUILD_TESTS)
+    add_executable(tuan_selftest tools/selftest.cpp)
+    target_link_libraries(tuan_selftest PRIVATE tuan_core)
+    if(UNIX AND NOT APPLE)
+        set_target_properties(tuan_selftest PROPERTIES
+            INSTALL_RPATH "$ORIGIN/lib"
+            BUILD_WITH_INSTALL_RPATH TRUE)
+    endif()
+
+    enable_testing()
+    add_test(NAME selftest COMMAND tuan_selftest)
+endif()
+
 # --- Công cụ xem trước giao diện (không đóng gói kèm) ---------------------
 # Dựng cửa sổ với dữ liệu mẫu rồi xuất ảnh PNG, dùng để soi giao diện mà không
 # cần tài khoản Telegram thật. Bật bằng -DBUILD_UI_PREVIEW=ON.

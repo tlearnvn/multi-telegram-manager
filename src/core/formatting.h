@@ -32,9 +32,6 @@ QString duration(int seconds);
 //! Rút gọn văn bản một dòng cho danh sách chat (bỏ xuống dòng, giới hạn ký tự).
 QString oneLine(const QString &text, int maxChars = 120);
 
-//! Chuyển chuỗi bất kỳ thành tên thư mục an toàn (dùng cho slug tài khoản).
-QString slugify(const QString &text);
-
 //! Mã hoá số điện thoại khi hiển thị: +84 90 *** ** 67
 QString maskPhone(const QString &phone);
 

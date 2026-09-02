@@ -23,9 +23,6 @@ public:
     //! Ảnh vừa khít trong \a bounds, giữ nguyên tỉ lệ (không cắt).
     QPixmap scaled(const QString &path, const QSize &bounds);
 
-    //! Ảnh gốc (dùng khi mở xem ảnh cỡ lớn).
-    QPixmap original(const QString &path);
-
     //! Kích cỡ gốc của ảnh mà không cần giải mã toàn bộ.
     QSize imageSize(const QString &path);
 

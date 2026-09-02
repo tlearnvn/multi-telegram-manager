@@ -43,16 +43,6 @@ QPixmap FileCache::scaled(const QString &path, const QSize &bounds)
     return load(cacheKey(path, bounds, false), path, bounds, false);
 }
 
-QPixmap FileCache::original(const QString &path)
-{
-    if (path.isEmpty())
-        return QPixmap();
-    QPixmap pixmap;
-    if (!pixmap.load(path))
-        return QPixmap();
-    return pixmap;
-}
-
 QSize FileCache::imageSize(const QString &path)
 {
     if (path.isEmpty())

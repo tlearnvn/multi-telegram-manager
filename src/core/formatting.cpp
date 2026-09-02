@@ -156,29 +156,6 @@ QString oneLine(const QString &text, int maxChars)
     return flat;
 }
 
-QString slugify(const QString &text)
-{
-    QString result;
-    result.reserve(text.size());
-    for (const QChar ch : text) {
-        if (ch.isLetterOrNumber() && ch.unicode() < 128)
-            result.append(ch.toLower());
-        else if (ch == QLatin1Char('+'))
-            result.append(QLatin1Char('p'));
-        else if (ch.isSpace() || ch == QLatin1Char('-') || ch == QLatin1Char('_'))
-            result.append(QLatin1Char('-'));
-    }
-    while (result.contains(QStringLiteral("--")))
-        result.replace(QStringLiteral("--"), QStringLiteral("-"));
-    if (result.startsWith(QLatin1Char('-')))
-        result.remove(0, 1);
-    if (result.endsWith(QLatin1Char('-')))
-        result.chop(1);
-    if (result.isEmpty())
-        result = QStringLiteral("tai-khoan");
-    return result.left(48);
-}
-
 QString maskPhone(const QString &phone)
 {
     const QString digits = normalizePhone(phone);

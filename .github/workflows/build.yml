@@ -155,8 +155,26 @@ jobs:
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DAPP_VERSION="${{ needs.version.outputs.version }}"
+            -DAPP_VERSION="${{ needs.version.outputs.version }}" \
+            -DBUILD_TESTS=ON -DBUILD_UI_PREVIEW=ON
           cmake --build build -j"$(nproc)"
+
+      - name: Chạy bộ kiểm tra tự động
+        run: ./build/bin/tuan_selftest
+
+      - name: Dựng ảnh xem trước giao diện
+        run: |
+          # Vừa là kiểm tra khói cho toàn bộ giao diện (dựng đủ cửa sổ, mọi
+          # panel, delegate) vừa cho ra ảnh để soi khi cần.
+          mkdir -p artifacts/anh
+          QT_QPA_PLATFORM=offscreen ./build/bin/tuan_uipreview artifacts/anh
+          ls -la artifacts/anh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: anh-giao-dien-${{ needs.version.outputs.version }}
+          path: artifacts/anh/*.png
+          if-no-files-found: warn
 
       - name: Đóng gói bản cơ động
         run: |
@@ -171,7 +189,12 @@ jobs:
           # Kèm TDLib nếu build được.
           if compgen -G "$HOME/tdlib-prefix/lib/libtdjson.so*" > /dev/null; then
             cp -L "$HOME"/tdlib-prefix/lib/libtdjson.so* "$OUT/lib/"
-            ( cd "$OUT/lib" && ln -sf "$(ls libtdjson.so* | head -1)" libtdjson.so )
+            # Bảo đảm có tệp mang đúng tên "libtdjson.so" để trình nạp tìm thấy.
+            # TDLib có bản ra thẳng libtdjson.so, có bản ra libtdjson.so.1.8.x.
+            if [ ! -e "$OUT/lib/libtdjson.so" ]; then
+              versioned=$(cd "$OUT/lib" && ls libtdjson.so.* | head -1)
+              ( cd "$OUT/lib" && ln -sf "$versioned" libtdjson.so )
+            fi
             echo "Đã kèm TDLib vào gói."
           else
             echo "CHƯA có TDLib — người dùng cần tự đặt libtdjson.so vào thư mục lib/." \

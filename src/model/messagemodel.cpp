@@ -1,8 +1,10 @@
 #include "model/messagemodel.h"
 
+#include "core/formatting.h"
 #include "td/tdaccount.h"
 
 #include <QDateTime>
+#include <QStringList>
 
 #include <algorithm>
 
@@ -88,6 +90,17 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
         return entry->isOutgoing;
     case Qt::DisplayRole:
         return entry->text;
+    case Qt::ToolTipRole: {
+        QStringList lines;
+        lines << Format::fullDateTime(entry->date);
+        if (entry->editDate > 0)
+            lines << QObject::tr("Đã sửa lúc %1").arg(Format::fullDateTime(entry->editDate));
+        if (!entry->forwardFromName.isEmpty())
+            lines << QObject::tr("Chuyển tiếp từ %1").arg(entry->forwardFromName);
+        if (entry->viewCount > 0)
+            lines << QObject::tr("%1 lượt xem").arg(entry->viewCount);
+        return lines.join(QLatin1Char('\n'));
+    }
     default:
         break;
     }
