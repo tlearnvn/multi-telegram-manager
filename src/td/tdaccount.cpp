@@ -1871,7 +1871,7 @@ void TdAccount::loadHistory(qint64 chatId, qint64 fromMessageId, int limit)
 }
 
 void TdAccount::sendText(qint64 chatId, const QString &text, qint64 replyToMessageId,
-                         bool disableWebPreview)
+                         bool disableWebPreview, ResultHandler onSent)
 {
     if (text.trimmed().isEmpty())
         return;
@@ -1909,7 +1909,9 @@ void TdAccount::sendText(qint64 chatId, const QString &text, qint64 replyToMessa
         payload.insert(QStringLiteral("reply_to"), replyTo);
     }
 
-    request(payload, [this, chatId](const QJsonObject &result, bool ok) {
+    request(payload, [this, chatId, onSent](const QJsonObject &result, bool ok) {
+        if (onSent)
+            onSent(result, ok);
         if (!ok) {
             emit errorOccurred(QStringLiteral("Không gửi được tin nhắn: %1")
                                    .arg(Json::str(result, QStringLiteral("message"))));
@@ -1922,11 +1924,13 @@ void TdAccount::sendText(qint64 chatId, const QString &text, qint64 replyToMessa
 }
 
 void TdAccount::sendFile(qint64 chatId, const QString &filePath, const QString &caption,
-                         qint64 replyToMessageId)
+                         qint64 replyToMessageId, ResultHandler onSent)
 {
     const QFileInfo info(filePath);
     if (!info.exists() || !info.isFile()) {
         emit errorOccurred(QStringLiteral("Không tìm thấy tệp: %1").arg(filePath));
+        if (onSent)
+            onSent(QJsonObject(), false);
         return;
     }
 
@@ -1971,7 +1975,9 @@ void TdAccount::sendFile(qint64 chatId, const QString &filePath, const QString &
         payload.insert(QStringLiteral("reply_to"), replyTo);
     }
 
-    request(payload, [this, chatId](const QJsonObject &result, bool ok) {
+    request(payload, [this, chatId, onSent](const QJsonObject &result, bool ok) {
+        if (onSent)
+            onSent(result, ok);
         if (!ok) {
             emit errorOccurred(QStringLiteral("Không gửi được tệp: %1")
                                    .arg(Json::str(result, QStringLiteral("message"))));

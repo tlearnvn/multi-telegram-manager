@@ -19,6 +19,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSpinBox>
@@ -276,7 +277,8 @@ void BroadcastDialog::sendNext()
 
     if (m_cursor >= m_targets.size()) {
         setRunning(false);
-        appendLog(tr("Hoàn tất: thành công %1, lỗi %2.").arg(m_sent).arg(m_failed));
+        appendLog(tr("Đã gửi hết %1 nơi — thành công %2, lỗi %3.")
+                      .arg(m_targets.size()).arg(m_sent).arg(m_failed));
         emit statusMessage(tr("Gửi hàng loạt xong: %1 thành công, %2 lỗi.")
                                .arg(m_sent).arg(m_failed));
         return;
@@ -295,14 +297,35 @@ void BroadcastDialog::sendNext()
 
     const QString text = m_message->toPlainText().trimmed();
 
+    // TDLib trả lời bất đồng bộ; chỉ ghi "đã gửi" khi thật sự nhận được phản
+    // hồi, để nhật ký không báo thành công cho những nơi bị từ chối.
+    QPointer<BroadcastDialog> guard(this);
+    const QString label = target.label;
+    auto onSent = [this, guard, label](const QJsonObject &result, bool ok) {
+        if (!guard)
+            return;
+        if (ok) {
+            ++m_sent;
+            appendLog(tr("%1 — đã gửi.").arg(label));
+        } else {
+            ++m_failed;
+            const QString reason = Json::str(result, QStringLiteral("message"),
+                                             tr("không rõ nguyên nhân"));
+            appendLog(tr("%1 — LỖI: %2").arg(label, reason), true);
+            if (m_stopOnError->isChecked()) {
+                appendLog(tr("Đã bật “dừng nếu gặp lỗi” — ngừng gửi."), true);
+                stopSending();
+            }
+        }
+    };
+
     if (!m_attachmentPath.isEmpty())
-        target.account->sendFile(target.chatId, m_attachmentPath, text);
+        target.account->sendFile(target.chatId, m_attachmentPath, text, 0, onSent);
     else
-        target.account->sendText(target.chatId, text);
+        target.account->sendText(target.chatId, text, 0, false, onSent);
 
-    ++m_sent;
-    appendLog(tr("%1 — đã gửi.").arg(target.label));
+    appendLog(tr("%1 — đang gửi…").arg(label));
 
-    // sendMessage của TDLib là bất đồng bộ; giãn cách giúp tránh FLOOD_WAIT.
+    // Giãn cách giữa hai lần gửi giúp tránh bị Telegram chặn tốc độ.
     m_timer->start(qMax(200, m_delaySpin->value() * 1000));
 }

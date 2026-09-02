@@ -116,10 +116,11 @@ public:
     void loadHistory(qint64 chatId, qint64 fromMessageId, int limit = 40);
     void requestChatDetails(qint64 chatId);
 
+    //! \a onSent (nếu có) được gọi khi TDLib nhận hoặc từ chối yêu cầu gửi.
     void sendText(qint64 chatId, const QString &text, qint64 replyToMessageId = 0,
-                  bool disableWebPreview = false);
+                  bool disableWebPreview = false, ResultHandler onSent = nullptr);
     void sendFile(qint64 chatId, const QString &filePath, const QString &caption,
-                  qint64 replyToMessageId = 0);
+                  qint64 replyToMessageId = 0, ResultHandler onSent = nullptr);
     void editMessageText(qint64 chatId, qint64 messageId, const QString &text);
     void deleteMessages(qint64 chatId, const QList<qint64> &messageIds, bool revoke);
     void forwardMessages(qint64 toChatId, qint64 fromChatId,
