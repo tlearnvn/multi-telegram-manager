@@ -163,7 +163,9 @@ jobs:
           fi
 
       - name: Ghi TDLib vào cache
+        # Khoá đã tồn tại thì bước này báo lỗi — bỏ qua, đừng làm job đỏ.
         if: steps.tdlib_build.outputs.built == 'true'
+        continue-on-error: true
         uses: actions/cache/save@v4
         with:
           path: ~/tdlib-prefix
@@ -292,16 +294,32 @@ jobs:
 
       # Xem ghi chú ở job Linux: ghi cache ngay sau khi build xong, đừng để bước
       # "post" của actions/cache bỏ qua vì job đỏ.
+      # Khoá v2: cache v1 do phiên bản workflow cũ ghi chỉ có tdjson.dll, thiếu
+      # OpenSSL/zlib. actions/cache/save KHÔNG ghi đè khoá đã tồn tại, nên phải
+      # đổi khoá mới dựng lại được cache cho đủ.
       - name: Lấy TDLib từ cache
         id: tdlib_cache
         uses: actions/cache/restore@v4
         with:
           path: C:\tdlib-prefix
-          key: tdlib-windows-${{ steps.tdlib_ref.outputs.sha }}-v1
+          key: tdlib-windows-${{ steps.tdlib_ref.outputs.sha }}-v2
 
-      - name: Build TDLib (chỉ khi cache trống)
+      - name: Xét cache TDLib có dùng được không
+        id: tdlib_state
+        shell: pwsh
+        run: |
+          # Có tdjson.dll mà thiếu OpenSSL thì nạp thư viện vẫn lỗi
+          # "The specified module could not be found" — coi như cache trống để
+          # bước dưới dựng lại cho đủ, thay vì phát hành một gói không chạy.
+          $hasTd  = Test-Path C:\tdlib-prefix\bin\tdjson.dll
+          $hasSsl = @(Get-ChildItem C:\tdlib-prefix\bin\libcrypto*.dll -ErrorAction SilentlyContinue).Count -gt 0
+          $usable = $hasTd -and $hasSsl
+          "usable=$($usable.ToString().ToLower())" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT
+          Write-Host "tdjson.dll=$hasTd  OpenSSL=$hasSsl  dung duoc=$usable"
+
+      - name: Build TDLib (chỉ khi cache trống hoặc thiếu DLL)
         id: tdlib_build
-        if: steps.tdlib_cache.outputs.cache-hit != 'true' && github.event.inputs.build_tdlib != 'false'
+        if: steps.tdlib_state.outputs.usable != 'true' && github.event.inputs.build_tdlib != 'false'
         continue-on-error: true
         shell: cmd
         run: |
@@ -326,11 +344,13 @@ jobs:
           if exist C:\tdlib-prefix\bin\tdjson.dll echo built=true>>%GITHUB_OUTPUT%
 
       - name: Ghi TDLib vào cache
+        # Khoá đã tồn tại thì bước này báo lỗi — bỏ qua, đừng làm job đỏ.
         if: steps.tdlib_build.outputs.built == 'true'
+        continue-on-error: true
         uses: actions/cache/save@v4
         with:
           path: C:\tdlib-prefix
-          key: tdlib-windows-${{ steps.tdlib_ref.outputs.sha }}-v1
+          key: tdlib-windows-${{ steps.tdlib_ref.outputs.sha }}-v2
 
       - name: Build ứng dụng
         shell: cmd
