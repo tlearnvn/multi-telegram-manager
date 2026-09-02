@@ -1,0 +1,28 @@
+# Thư mục build
+build/
+build-*/
+cmake-build-*/
+out/
+dist/
+
+# Dữ liệu chạy thử (chế độ cơ động lưu ngay cạnh tệp chạy)
+data/
+*.log
+
+# Thư viện TDLib đặt cạnh tệp chạy
+tdjson.dll
+libtdjson.so*
+libtdjson.dylib
+
+# Tệp tạm của IDE / hệ điều hành
+.vscode/
+.idea/
+*.user
+*.autosave
+.DS_Store
+Thumbs.db
+
+# Tệp sinh ra bởi moc/rcc khi build ngoài thư mục build
+moc_*.cpp
+qrc_*.cpp
+*.moc

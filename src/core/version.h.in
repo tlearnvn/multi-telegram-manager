@@ -1,0 +1,20 @@
+// Tệp này được CMake sinh tự động từ src/core/version.h.in — đừng sửa trực tiếp.
+#pragma once
+
+#define APP_NAME              "@APP_NAME@"
+#define APP_ORGANIZATION      "@APP_ORGANIZATION@"
+#define APP_EXECUTABLE_NAME   "@APP_EXECUTABLE_NAME@"
+#define APP_HOMEPAGE          "@PROJECT_HOMEPAGE_URL@"
+
+#define APP_VERSION_STRING    "@APP_VERSION@"
+#define APP_VERSION_MAJOR     @PROJECT_VERSION_MAJOR@
+#define APP_VERSION_MINOR     @PROJECT_VERSION_MINOR@
+#define APP_VERSION_PATCH     @PROJECT_VERSION_PATCH@
+
+#define APP_BUILD_NUMBER      "@APP_GIT_BUILD_NUMBER@"
+#define APP_GIT_COMMIT        "@APP_GIT_COMMIT@"
+#define APP_BUILD_DATE        "@APP_BUILD_DATE@"
+
+// Chuỗi phiên bản đầy đủ, ví dụ: 1.0.3 (build 42 · 9f1c2ab0 · 2026-09-02)
+#define APP_VERSION_FULL \
+    APP_VERSION_STRING " (build " APP_BUILD_NUMBER " \xc2\xb7 " APP_GIT_COMMIT " \xc2\xb7 " APP_BUILD_DATE ")"
