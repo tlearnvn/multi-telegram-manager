@@ -332,9 +332,13 @@ jobs:
           New-Item -ItemType Directory -Force -Path $out | Out-Null
 
           Copy-Item build\bin\TuanMultiTeleClient.exe $out
+          # --compiler-runtime là bắt buộc với bản cơ động: không có
+          # vcruntime140.dll / msvcp140.dll thì máy chưa cài "Visual C++
+          # Redistributable" sẽ báo thiếu DLL ngay khi mở, đúng vào tình huống
+          # cắm USB sang máy khác mà ứng dụng này hướng tới.
           & "$env:QT_ROOT_DIR\bin\windeployqt.exe" `
               --release --no-translations --no-system-d3d-compiler `
-              --no-opengl-sw --no-compiler-runtime `
+              --no-opengl-sw --compiler-runtime `
               "$out\TuanMultiTeleClient.exe"
 
           Copy-Item README.md, LICENSE, VERSION.txt $out
@@ -355,6 +359,44 @@ jobs:
 
           Compress-Archive -Path "$out\*" -DestinationPath "dist\TuanMultiTeleClient-$version-win-x64.zip" -Force
           Get-ChildItem dist
+
+      - name: Kiểm tra bản build chạy được
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $out = "dist\TuanMultiTeleClient-${{ needs.version.outputs.version }}-win-x64"
+
+          # Không gọi --version ở đây: tệp chạy thuộc phân hệ GUI nên
+          # QCommandLineParser có thể mở hộp thoại thay vì in ra console, làm CI
+          # treo. Thay vào đó mở ứng dụng thật rồi soi kết quả trên đĩa.
+          function Try-Start($platform) {
+              if ($platform) { $env:QT_QPA_PLATFORM = $platform }
+              else { Remove-Item Env:\QT_QPA_PLATFORM -ErrorAction SilentlyContinue }
+              $p = Start-Process -FilePath "$out\TuanMultiTeleClient.exe" -PassThru
+              Start-Sleep -Seconds 15
+              if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+              return (Test-Path "$out\data")
+          }
+
+          # Thử phân hệ đồ hoạ thật trước; nếu runner không dựng được cửa sổ thì
+          # thử lại bằng offscreen để phân biệt "lỗi ứng dụng" với "runner không
+          # có màn hình".
+          $ok = Try-Start $null
+          if (-not $ok) {
+              Write-Host 'Khong tao duoc data voi phan he mac dinh, thu offscreen...'
+              $ok = Try-Start 'offscreen'
+          }
+
+          # Thư mục data phải nằm cạnh tệp chạy — đây là yêu cầu cơ động.
+          if (-not $ok) {
+              Get-ChildItem $out
+              throw 'Ứng dụng không tạo được thư mục data cạnh tệp chạy.'
+          }
+          Write-Host 'OK: da tao thu muc data canh tep chay'
+
+          $log = Get-ChildItem "$out\data\logs\*.log" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Get-Content $log.FullName -TotalCount 20 }
+          else { throw 'Không có tệp log — ứng dụng chưa khởi động được.' }
 
       - uses: actions/upload-artifact@v4
         with:
