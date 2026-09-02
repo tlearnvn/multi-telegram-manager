@@ -29,7 +29,7 @@ ComposerEdit::ComposerEdit(QWidget *parent)
     : QPlainTextEdit(parent)
 {
     setFrameShape(QFrame::NoFrame);
-    setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setLineWrapMode(QPlainTextEdit::WidgetWidth);
     setAcceptDrops(true);
@@ -57,10 +57,16 @@ void ComposerEdit::updateHeight()
     // QPlainTextEdit dùng QPlainTextDocumentLayout, ở đó lineCount() là số dòng
     // sau khi đã ngắt dòng — đúng cái ta cần để ô nhập tự cao dần.
     m_lineHeight = QFontMetrics(font()).lineSpacing();
-    const int lines = qBound(1, document()->lineCount(), 7);
-    const int target = lines * m_lineHeight + 12;
+    const int wanted = document()->lineCount();
+    const int lines = qBound(1, wanted, 7);
+    const int target = lines * m_lineHeight + 14;
     if (height() != target || minimumHeight() != target)
         setFixedHeight(target);
+
+    // Chỉ hiện thanh cuộn khi nội dung thực sự vượt 7 dòng, nếu không sẽ có một
+    // vạch mảnh nằm cạnh nút gửi trông như lỗi vẽ.
+    setVerticalScrollBarPolicy(wanted > 7 ? Qt::ScrollBarAsNeeded
+                                          : Qt::ScrollBarAlwaysOff);
 }
 
 void ComposerEdit::keyPressEvent(QKeyEvent *event)
@@ -147,6 +153,10 @@ void ComposerEdit::insertFromMimeData(const QMimeData *source)
 Composer::Composer(QWidget *parent)
     : QWidget(parent)
 {
+    // QWidget thuần không tự vẽ nền khai báo trong stylesheet; cờ này bật
+    // việc đó lên, nếu không widget sẽ trong suốt và lộ màu nền cửa sổ.
+    setAttribute(Qt::WA_StyledBackground, true);
+
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(10, 6, 10, 10);
     root->setSpacing(6);

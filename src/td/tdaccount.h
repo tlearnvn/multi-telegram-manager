@@ -199,6 +199,14 @@ public:
     //! Tra tin nhắn đã nạp trong bộ nhớ (rỗng nếu chưa có).
     const MessageEntry *cachedMessage(qint64 chatId, qint64 messageId) const;
 
+    /*!
+     * \brief \a limit tin nhắn mới nhất đang có trong bộ nhớ, xếp từ cũ đến mới.
+     *
+     * Dùng để hiển thị ngay khi mở lại một cuộc trò chuyện, không phải chờ
+     * TDLib trả lịch sử về.
+     */
+    QList<MessageEntry> cachedMessages(qint64 chatId, int limit = 60) const;
+
 private:
     void setState(State state);
     void setError(const QString &message);

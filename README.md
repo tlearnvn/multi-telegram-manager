@@ -20,6 +20,17 @@ TuanMultiTeleClient/
     └── logs/                   ← bản ghi hoạt động
 ```
 
+![Giao diện chủ đề tối](docs/anh/giao-dien-toi.png)
+
+<details>
+<summary>Xem thêm ảnh: bảng điều khiển tài khoản và chủ đề sáng</summary>
+
+![Bảng điều khiển tài khoản](docs/anh/bang-dieu-khien.png)
+
+![Giao diện chủ đề sáng](docs/anh/giao-dien-sang.png)
+
+</details>
+
 ## Tính năng
 
 **Đa tài khoản — điểm mạnh chính**
@@ -176,6 +187,22 @@ Tăng MINOR / MAJOR khi cần:
 ```bash
 python3 scripts/bump_version.py --part minor
 ```
+
+## Xem trước giao diện không cần Telegram
+
+Có sẵn công cụ dựng cửa sổ với dữ liệu mẫu rồi xuất ảnh PNG — tiện để soi giao
+diện hoặc kiểm tra sau khi sửa mã, không cần TDLib hay tài khoản thật:
+
+```bash
+cmake -S . -B build -G Ninja -DBUILD_UI_PREVIEW=ON
+cmake --build build --target tuan_uipreview
+QT_QPA_PLATFORM=offscreen ./build/bin/tuan_uipreview /tmp/anh
+```
+
+Dữ liệu mẫu được nạp bằng **đúng định dạng JSON mà TDLib gửi**, đi qua đúng hàm
+`TdAccount::handleIncoming()` của bản chạy thật — nên công cụ này vừa xem được
+giao diện, vừa kiểm tra luôn phần phân tích dữ liệu. Ba ảnh trong `docs/anh`
+được tạo bằng chính công cụ này.
 
 ## Cấu trúc mã nguồn
 

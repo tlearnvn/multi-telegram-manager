@@ -563,8 +563,8 @@ QWidget *SettingsDialog::buildAdvancedPage()
 
     layout->addStretch(1);
 
-    // Trạng thái TDLib hiện tại.
-    reloadTdlib();
+    // Chỉ hiển thị trạng thái; việc nạp lại chỉ xảy ra khi người dùng bấm nút.
+    refreshTdlibStatus();
     return page;
 }
 
@@ -603,6 +603,22 @@ void SettingsDialog::reloadTdlib()
     settings.flush();
 
     TdLoader &loader = TdLoader::instance();
+
+    // Chưa nạp được thì thử nạp lại rồi mở lại các tài khoản.
+    if (!loader.isLoaded() && loader.load()) {
+        TdTransport::instance().start();
+        m_manager->reopenAll();
+        emit statusMessage(tr("Đã nạp TDLib và mở lại các tài khoản."));
+    }
+    refreshTdlibStatus();
+}
+
+void SettingsDialog::refreshTdlibStatus()
+{
+    if (!m_tdStatus)
+        return;
+
+    TdLoader &loader = TdLoader::instance();
     const Theme::Colors &c = Theme::instance().colors();
 
     if (loader.isLoaded()) {
@@ -612,15 +628,6 @@ void SettingsDialog::reloadTdlib()
                                 .arg(c.success.name(),
                                      loader.libraryPath().toHtmlEscaped(),
                                      c.textSecondary.name()));
-        return;
-    }
-
-    if (loader.load()) {
-        m_tdStatus->setText(tr("<b style='color:%1'>Đã nạp TDLib</b><br/><code>%2</code>")
-                                .arg(c.success.name(), loader.libraryPath().toHtmlEscaped()));
-        TdTransport::instance().start();
-        m_manager->reopenAll();
-        emit statusMessage(tr("Đã nạp TDLib và mở lại các tài khoản."));
         return;
     }
 

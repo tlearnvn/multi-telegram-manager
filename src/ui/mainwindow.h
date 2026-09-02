@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QPointer>
+#include <QSet>
 
 class AccountManager;
 class AccountRail;
@@ -40,13 +41,15 @@ public slots:
     void openBroadcast();
     void addAccount();
 
+    //! Mở một cuộc trò chuyện (dùng cho thông báo khay và công cụ xem trước).
+    void onChatSelected(qint64 chatId);
+
 protected:
     void closeEvent(QCloseEvent *event) override;
     void changeEvent(QEvent *event) override;
 
 private slots:
     void onActiveAccountChanged(TdAccount *account);
-    void onChatSelected(qint64 chatId);
     void onForwardRequested(qint64 fromChatId, const QList<qint64> &messageIds);
     void onAccountMenu(TdAccount *account, const QPoint &globalPos);
     void onNotification(qint64 chatId, const QString &title, const QString &body);
@@ -80,5 +83,8 @@ private:
 
     TrayIcon *m_tray = nullptr;
     QPointer<TdAccount> m_activeAccount;
+    //! Các tài khoản đã nối tín hiệu. Không dùng Qt::UniqueConnection được vì
+    //! cờ đó chỉ áp dụng cho con trỏ hàm thành viên, không áp dụng cho lambda.
+    QSet<TdAccount *> m_wiredAccounts;
     bool m_reallyQuit = false;
 };

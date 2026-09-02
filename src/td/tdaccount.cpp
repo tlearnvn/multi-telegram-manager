@@ -455,6 +455,24 @@ const MessageEntry *TdAccount::cachedMessage(qint64 chatId, qint64 messageId) co
     return messageIt == chatIt.value().constEnd() ? nullptr : &messageIt.value();
 }
 
+QList<MessageEntry> TdAccount::cachedMessages(qint64 chatId, int limit) const
+{
+    auto chatIt = m_messages.constFind(chatId);
+    if (chatIt == m_messages.constEnd())
+        return {};
+
+    QList<qint64> ids = chatIt.value().keys();
+    std::sort(ids.begin(), ids.end());
+    if (limit > 0 && ids.size() > limit)
+        ids = ids.mid(ids.size() - limit);
+
+    QList<MessageEntry> result;
+    result.reserve(ids.size());
+    for (qint64 id : ids)
+        result.append(chatIt.value().value(id));
+    return result;
+}
+
 // --- Gửi yêu cầu -----------------------------------------------------------
 
 void TdAccount::send(const QJsonObject &payload)
@@ -1257,10 +1275,17 @@ void TdAccount::applyChatPositions(ChatEntry &entry, const QJsonArray &positions
         const bool pinned = Json::boolean(position, QStringLiteral("is_pinned"));
 
         if (listType == QStringLiteral("chatListMain")) {
-            entry.order = order;
-            entry.isPinned = pinned;
-            if (order != 0)
+            if (order != 0) {
+                entry.order = order;
+                entry.isPinned = pinned;
                 entry.inArchive = false;
+            } else if (!entry.inArchive) {
+                // order = 0 ở danh sách chính nghĩa là chat rời khỏi danh sách.
+                // Nếu chat đang ở mục lưu trữ thì bỏ qua, kẻo xoá mất thứ tự
+                // trong mục lưu trữ (TDLib gửi hai cập nhật vị trí rời nhau).
+                entry.order = 0;
+                entry.isPinned = false;
+            }
         } else if (listType == QStringLiteral("chatListArchive")) {
             if (order != 0) {
                 entry.inArchive = true;

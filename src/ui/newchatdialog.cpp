@@ -13,6 +13,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QTabWidget>
 #include <QVBoxLayout>
@@ -84,7 +85,10 @@ void NewChatDialog::buildUi()
                 return;
             }
             m_status->setText(tr("Đang tìm “%1”…").arg(query));
-            m_account->searchByUsername(query, [this](const QJsonObject &result, bool ok) {
+            QPointer<NewChatDialog> guard(this);
+            m_account->searchByUsername(query, [this, guard](const QJsonObject &result, bool ok) {
+                if (!guard)
+                    return;
                 if (!ok) {
                     m_status->setText(tr("Không tìm thấy: %1")
                                           .arg(Json::str(result, QStringLiteral("message"))));
@@ -214,7 +218,10 @@ void NewChatDialog::loadContacts()
     }
 
     m_status->setText(tr("Đang tải danh bạ…"));
-    m_account->fetchContacts([this](const QJsonObject &result, bool ok) {
+    QPointer<NewChatDialog> guard(this);
+    m_account->fetchContacts([this, guard](const QJsonObject &result, bool ok) {
+        if (!guard)
+            return;
         if (!ok) {
             m_status->setText(tr("Không tải được danh bạ: %1")
                                   .arg(Json::str(result, QStringLiteral("message"))));
@@ -290,7 +297,10 @@ void NewChatDialog::startPrivateChat()
 
     const qint64 userId = item->data(kUserRole).toLongLong();
     m_status->setText(tr("Đang mở cuộc trò chuyện…"));
-    m_account->createPrivateChat(userId, [this](const QJsonObject &result, bool ok) {
+    QPointer<NewChatDialog> guard(this);
+    m_account->createPrivateChat(userId, [this, guard](const QJsonObject &result, bool ok) {
+        if (!guard)
+            return;
         if (!ok) {
             m_status->setText(tr("Lỗi: %1").arg(Json::str(result, QStringLiteral("message"))));
             return;
@@ -313,7 +323,10 @@ void NewChatDialog::createGroup()
     }
 
     m_status->setText(tr("Đang tạo nhóm…"));
-    m_account->createGroup(title, members, [this](const QJsonObject &result, bool ok) {
+    QPointer<NewChatDialog> guard(this);
+    m_account->createGroup(title, members, [this, guard](const QJsonObject &result, bool ok) {
+        if (!guard)
+            return;
         if (!ok) {
             m_status->setText(tr("Không tạo được nhóm: %1")
                                   .arg(Json::str(result, QStringLiteral("message"))));
@@ -332,9 +345,12 @@ void NewChatDialog::createChannel()
     }
 
     m_status->setText(tr("Đang tạo…"));
+    QPointer<NewChatDialog> guard(this);
     m_account->createChannel(title, m_channelDescription->toPlainText().trimmed(),
                              m_channelIsGroup->isChecked(),
-                             [this](const QJsonObject &result, bool ok) {
+                             [this, guard](const QJsonObject &result, bool ok) {
+        if (!guard)
+            return;
         if (!ok) {
             m_status->setText(tr("Không tạo được: %1")
                                   .arg(Json::str(result, QStringLiteral("message"))));
@@ -359,8 +375,12 @@ void NewChatDialog::joinByLink()
                            || input.contains(QStringLiteral("t.me/+"))
                            || input.contains(QStringLiteral("t.me/ "));
 
+    QPointer<NewChatDialog> guard(this);
+
     if (isInviteLink) {
-        m_account->joinByInviteLink(input, [this](const QJsonObject &result, bool ok) {
+        m_account->joinByInviteLink(input, [this, guard](const QJsonObject &result, bool ok) {
+            if (!guard)
+                return;
             if (!ok) {
                 m_status->setText(tr("Không tham gia được: %1")
                                       .arg(Json::str(result, QStringLiteral("message"))));
@@ -378,7 +398,9 @@ void NewChatDialog::joinByLink()
     username.remove(QLatin1Char('@'));
     username = username.section(QLatin1Char('/'), 0, 0).section(QLatin1Char('?'), 0, 0);
 
-    m_account->searchByUsername(username, [this](const QJsonObject &result, bool ok) {
+    m_account->searchByUsername(username, [this, guard](const QJsonObject &result, bool ok) {
+        if (!guard)
+            return;
         if (!ok) {
             m_status->setText(tr("Không tìm thấy: %1")
                                   .arg(Json::str(result, QStringLiteral("message"))));
@@ -388,8 +410,9 @@ void NewChatDialog::joinByLink()
         // Với kênh/nhóm công khai cần gọi joinChat để thực sự tham gia.
         QJsonObject payload = Json::request(QStringLiteral("joinChat"));
         payload.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
-        m_account->request(payload, [this, chatId](const QJsonObject &, bool) {
-            finishWith(chatId, tr("Đã mở cuộc trò chuyện."));
+        m_account->request(payload, [this, guard, chatId](const QJsonObject &, bool) {
+            if (guard)
+                finishWith(chatId, tr("Đã mở cuộc trò chuyện."));
         });
     });
 }

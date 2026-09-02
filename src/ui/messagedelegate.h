@@ -9,6 +9,7 @@
 #include <QStyledItemDelegate>
 
 class MessageModel;
+class QAbstractItemView;
 class QTextDocument;
 
 /*!
@@ -52,6 +53,15 @@ public:
     //! Bật/tắt hiển thị avatar người gửi trong nhóm.
     void setShowGroupAvatars(bool show);
 
+    /*!
+     * Cho delegate biết view đang dùng nó.
+     *
+     * QListView đôi khi gọi sizeHint() với option.rect rỗng (lúc chưa có kích
+     * cỡ). Nếu tin lời đó thì chiều cao tính ra sai. Có con trỏ view thì luôn
+     * lấy được chiều rộng vùng hiển thị thật.
+     */
+    void setView(QAbstractItemView *view) { m_view = view; }
+
 signals:
     //! Yêu cầu tải tệp khi người dùng bấm vào ảnh/thẻ tệp chưa tải.
     void downloadRequested(int fileId);
@@ -84,7 +94,10 @@ private:
     QSize mediaDisplaySize(const MessageEntry &entry, int maxWidth) const;
     QString metaTextFor(const MessageEntry &entry) const;
 
+    int effectiveWidth(const QStyleOptionViewItem &option) const;
+
     MessageModel *m_model;
+    QAbstractItemView *m_view = nullptr;
     bool m_showGroupAvatars = true;
     mutable QHash<QString, QSharedPointer<QTextDocument>> m_documents;
     mutable QHash<QString, int> m_heights;

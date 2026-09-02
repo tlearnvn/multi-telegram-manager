@@ -53,13 +53,18 @@ void MessageModel::setChat(qint64 chatId)
 
     beginResetModel();
     m_chatId = chatId;
-    m_items.clear();
+    // Hiển thị ngay những tin đã có trong bộ nhớ để không thấy khung trắng khi
+    // chuyển qua lại giữa các cuộc trò chuyện; lịch sử đầy đủ nạp sau.
+    m_items = (m_account && chatId != 0) ? m_account->cachedMessages(chatId, 60)
+                                         : QList<MessageEntry>();
     m_reachedOldest = false;
     endResetModel();
 
     if (m_account && m_chatId != 0) {
         setLoading(true);
         m_account->loadHistory(m_chatId, 0, 40);
+        if (!m_items.isEmpty())
+            emit newestMessageAppended();
     }
 }
 

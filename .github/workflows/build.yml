@@ -23,6 +23,11 @@ on:
         type: boolean
         default: true
 
+# Đẩy mã liên tiếp thì chỉ giữ lần chạy mới nhất cho khỏi tốn runner.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   QT_VERSION: 6.4.3
   TDLIB_REF: master
@@ -57,10 +62,11 @@ jobs:
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             python3 scripts/bump_version.py --part "$part"
           else
-            # Chỉ tăng khi lần đẩy này thực sự chạm vào mã nguồn.
+            # Chỉ tăng khi lần đẩy này thực sự chạm vào mã nguồn. Script tự lùi
+            # về HEAD~1 rồi về nội dung commit nếu mốc so sánh không dùng được
+            # (nhánh mới thì github.event.before là toàn số 0).
             python3 scripts/bump_version.py --auto --part patch \
-              --diff-base "${{ github.event.before }}" || \
-              python3 scripts/bump_version.py --auto --part patch
+              --diff-base "${{ github.event.before }}"
           fi
 
           after=$(python3 scripts/bump_version.py --print)

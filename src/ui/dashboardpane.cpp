@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPointer>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QTimer>
@@ -73,7 +74,12 @@ DashboardPane::DashboardPane(AccountManager *manager, QWidget *parent)
     // Dung lượng thay đổi chậm, làm mới mỗi 20 giây là đủ.
     m_refreshTimer = new QTimer(this);
     m_refreshTimer->setInterval(20000);
-    connect(m_refreshTimer, &QTimer::timeout, this, &DashboardPane::refresh);
+    connect(m_refreshTimer, &QTimer::timeout, this, [this] {
+        // Quét dung lượng phải đọc cả thư mục dữ liệu nên chỉ làm khi bảng đang
+        // hiện, tránh làm giao diện giật lúc người dùng đang chat.
+        if (isVisible())
+            refresh();
+    });
     m_refreshTimer->start();
 
     applyTheme();
@@ -82,6 +88,10 @@ DashboardPane::DashboardPane(AccountManager *manager, QWidget *parent)
 
 void DashboardPane::buildUi()
 {
+    // QWidget thuần không tự vẽ nền khai báo trong stylesheet; cờ này bật
+    // việc đó lên, nếu không widget sẽ trong suốt và lộ màu nền cửa sổ.
+    setAttribute(Qt::WA_StyledBackground, true);
+
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(24, 20, 24, 20);
     root->setSpacing(14);
@@ -163,7 +173,10 @@ void DashboardPane::buildUi()
         });
         menu.addSeparator();
         menu.addAction(tr("Dọn bộ đệm tệp"), this, [this, account] {
-            account->optimizeStorage([this, account](const QJsonObject &, bool ok) {
+            QPointer<DashboardPane> guard(this);
+            account->optimizeStorage([this, guard, account](const QJsonObject &, bool ok) {
+                if (!guard)
+                    return;
                 emit statusMessage(ok
                     ? tr("Đã dọn bộ đệm của %1.").arg(account->displayName())
                     : tr("Không dọn được bộ đệm."));

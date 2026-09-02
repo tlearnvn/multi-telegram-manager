@@ -62,9 +62,9 @@ configure_file(
 message(STATUS "Tuan' MultiTele Client ${APP_VERSION} (build ${APP_GIT_BUILD_NUMBER}, ${APP_GIT_COMMIT})")
 
 # --- Danh sách nguồn -------------------------------------------------------
+# Mọi thứ trừ main.cpp nằm trong một thư viện tĩnh, nhờ vậy công cụ xem trước
+# giao diện (tools/uipreview.cpp) dùng lại được cùng mã nguồn.
 set(APP_SOURCES
-    src/main.cpp
-
     src/core/apppaths.cpp
     src/core/apppaths.h
     src/core/logging.cpp
@@ -148,22 +148,42 @@ set(APP_SOURCES
     src/ui/aboutdialog.h
 )
 
+# --- Thư viện dùng chung ---------------------------------------------------
+add_library(tuan_core STATIC ${APP_SOURCES})
+
+target_include_directories(tuan_core PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
+target_link_libraries(tuan_core PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets)
+
+if(MSVC)
+    target_compile_options(tuan_core PUBLIC /utf-8 /W3 /permissive-)
+    target_compile_definitions(tuan_core PUBLIC
+        UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+else()
+    target_compile_options(tuan_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
+endif()
+
+target_compile_definitions(tuan_core PUBLIC
+    QT_DISABLE_DEPRECATED_BEFORE=0x060000
+    QT_NO_CAST_FROM_BYTEARRAY)
+
+set_target_properties(tuan_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# --- Tệp chạy chính -------------------------------------------------------
+set(APP_MAIN_SOURCES src/main.cpp)
+
 if(WIN32)
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/app.rc.in"
         "${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc"
         @ONLY)
-    list(APPEND APP_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc")
+    list(APPEND APP_MAIN_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc")
 endif()
 
-qt_add_executable(${APP_EXECUTABLE_NAME} WIN32 MACOSX_BUNDLE ${APP_SOURCES})
-
-target_include_directories(${APP_EXECUTABLE_NAME} PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated")
-
-target_link_libraries(${APP_EXECUTABLE_NAME} PRIVATE
-    Qt6::Core Qt6::Gui Qt6::Widgets)
+qt_add_executable(${APP_EXECUTABLE_NAME} WIN32 MACOSX_BUNDLE ${APP_MAIN_SOURCES})
+target_link_libraries(${APP_EXECUTABLE_NAME} PRIVATE tuan_core)
 
 if(UNIX AND NOT APPLE)
     # Bản portable: tìm thư viện Qt trong ./lib cạnh file chạy.
@@ -172,17 +192,20 @@ if(UNIX AND NOT APPLE)
         BUILD_WITH_INSTALL_RPATH TRUE)
 endif()
 
-if(MSVC)
-    target_compile_options(${APP_EXECUTABLE_NAME} PRIVATE /utf-8 /W3 /permissive-)
-    target_compile_definitions(${APP_EXECUTABLE_NAME} PRIVATE
-        UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
-else()
-    target_compile_options(${APP_EXECUTABLE_NAME} PRIVATE -Wall -Wextra -Wno-unused-parameter)
-endif()
+# --- Công cụ xem trước giao diện (không đóng gói kèm) ---------------------
+# Dựng cửa sổ với dữ liệu mẫu rồi xuất ảnh PNG, dùng để soi giao diện mà không
+# cần tài khoản Telegram thật. Bật bằng -DBUILD_UI_PREVIEW=ON.
+option(BUILD_UI_PREVIEW "Build công cụ xuất ảnh xem trước giao diện" OFF)
 
-target_compile_definitions(${APP_EXECUTABLE_NAME} PRIVATE
-    QT_DISABLE_DEPRECATED_BEFORE=0x060000
-    QT_NO_CAST_FROM_BYTEARRAY)
+if(BUILD_UI_PREVIEW)
+    add_executable(tuan_uipreview tools/uipreview.cpp)
+    target_link_libraries(tuan_uipreview PRIVATE tuan_core)
+    if(UNIX AND NOT APPLE)
+        set_target_properties(tuan_uipreview PROPERTIES
+            INSTALL_RPATH "$ORIGIN/lib"
+            BUILD_WITH_INSTALL_RPATH TRUE)
+    endif()
+endif()
 
 # --- Cài đặt / đóng gói ----------------------------------------------------
 include(GNUInstallDirs)

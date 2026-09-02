@@ -291,29 +291,23 @@ void MainWindow::buildShortcuts()
 
 void MainWindow::wireAccount(TdAccount *account)
 {
-    if (!account)
+    if (!account || m_wiredAccounts.contains(account))
         return;
+    m_wiredAccounts.insert(account);
+    connect(account, &QObject::destroyed, this, [this, account] {
+        m_wiredAccounts.remove(account);
+    });
 
-    connect(account, &TdAccount::notificationRequested, this, &MainWindow::onNotification,
-            Qt::UniqueConnection);
+    connect(account, &TdAccount::notificationRequested, this, &MainWindow::onNotification);
     connect(account, &TdAccount::errorOccurred, this, [this, account](const QString &message) {
         // Chỉ báo lỗi của tài khoản đang xem để không làm rối người dùng.
         if (account == m_activeAccount)
             showToast(message);
-    }, Qt::UniqueConnection);
+    });
     connect(account, &TdAccount::connectionStateChanged, this,
-            [this](TdConnectionState) { updateStatusBar(); }, Qt::UniqueConnection);
+            [this](TdConnectionState) { updateStatusBar(); });
     connect(account, &TdAccount::stateChanged, this,
-            [this, account](TdAccount::State state) {
-        updateStatusBar();
-        // Tài khoản mới cần đăng nhập → mở hộp thoại nếu đang là tài khoản hiện hành.
-        if (account == m_activeAccount
-            && (state == TdAccount::State::WaitPhone
-                || state == TdAccount::State::WaitCode
-                || state == TdAccount::State::WaitPassword)) {
-            // Không tự mở khi người dùng đã có hộp thoại — LoginDialog tự lo.
-        }
-    }, Qt::UniqueConnection);
+            [this](TdAccount::State) { updateStatusBar(); });
 }
 
 void MainWindow::startUp()

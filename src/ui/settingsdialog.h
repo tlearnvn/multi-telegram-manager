@@ -29,6 +29,7 @@ private slots:
     void applyAppearance();
     void applyProxy();
     void reloadTdlib();
+    void refreshTdlibStatus();
     void clearCache();
     void saveApiCredentials();
 

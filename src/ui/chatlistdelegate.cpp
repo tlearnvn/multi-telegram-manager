@@ -7,6 +7,7 @@
 #include "ui/iconfactory.h"
 #include "ui/theme.h"
 
+#include <QAbstractItemView>
 #include <QFontMetrics>
 #include <QPainter>
 
@@ -31,6 +32,15 @@ void ChatListDelegate::setCompact(bool compact)
     m_compact = compact;
 }
 
+int ChatListDelegate::effectiveWidth(const QStyleOptionViewItem &option) const
+{
+    if (option.rect.width() > 80)
+        return option.rect.width();
+    if (m_view && m_view->viewport()->width() > 80)
+        return m_view->viewport()->width();
+    return 300;
+}
+
 QSize ChatListDelegate::sizeHint(const QStyleOptionViewItem &option,
                                  const QModelIndex &index) const
 {
@@ -39,7 +49,7 @@ QSize ChatListDelegate::sizeHint(const QStyleOptionViewItem &option,
     const QFontMetrics metrics(option.font);
     const int textHeight = m_compact ? metrics.height() + 2
                                      : metrics.height() * 2 + 6;
-    return QSize(option.rect.width(), qMax(avatar, textHeight) + kPadY * 2);
+    return QSize(effectiveWidth(option), qMax(avatar, textHeight) + kPadY * 2);
 }
 
 void ChatListDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,

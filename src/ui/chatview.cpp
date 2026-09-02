@@ -24,6 +24,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
+#include <QPointer>
 #include <QScrollBar>
 #include <QStyleOptionViewItem>
 #include <QTimer>
@@ -72,12 +73,19 @@ ChatView::ChatView(QWidget *parent)
 
 void ChatView::buildUi()
 {
+    // QWidget thuần không tự vẽ nền khai báo trong stylesheet; cờ này bật
+    // việc đó lên, nếu không widget sẽ trong suốt và lộ màu nền cửa sổ.
+    setAttribute(Qt::WA_StyledBackground, true);
+
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
 
     // --- Thanh tiêu đề ----------------------------------------------------
     m_header = new QWidget(this);
+    m_header->setObjectName(QStringLiteral("chatHeader"));
+    m_header->setAttribute(Qt::WA_StyledBackground, true);
+    m_header->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     auto *headerLayout = new QHBoxLayout(m_header);
     headerLayout->setContentsMargins(12, 8, 8, 8);
     headerLayout->setSpacing(10);
@@ -105,6 +113,8 @@ void ChatView::buildUi()
 
     // --- Thanh tìm kiếm trong chat ----------------------------------------
     m_searchBar = new QWidget(this);
+    m_searchBar->setObjectName(QStringLiteral("chatSearchBar"));
+    m_searchBar->setAttribute(Qt::WA_StyledBackground, true);
     auto *searchLayout = new QHBoxLayout(m_searchBar);
     searchLayout->setContentsMargins(12, 6, 8, 6);
     searchLayout->setSpacing(6);
@@ -124,6 +134,8 @@ void ChatView::buildUi()
 
     // --- Thanh chọn nhiều tin ---------------------------------------------
     m_selectionBar = new QWidget(this);
+    m_selectionBar->setObjectName(QStringLiteral("chatSelectionBar"));
+    m_selectionBar->setAttribute(Qt::WA_StyledBackground, true);
     auto *selectionLayout = new QHBoxLayout(m_selectionBar);
     selectionLayout->setContentsMargins(12, 6, 8, 6);
     selectionLayout->setSpacing(8);
@@ -163,6 +175,7 @@ void ChatView::buildUi()
     m_list->setMouseTracking(true);
     m_list->setContextMenuPolicy(Qt::CustomContextMenu);
     m_list->setWordWrap(true);
+    m_delegate->setView(m_list);
     bodyLayout->addWidget(m_list, 1);
 
     m_composer = new Composer(m_body);
@@ -342,6 +355,13 @@ void ChatView::setAccount(TdAccount *account)
 
 void ChatView::setChat(qint64 chatId)
 {
+    // Chọn lại đúng cuộc trò chuyện đang mở thì không dựng lại gì cả, nếu không
+    // nội dung đang soạn dở sẽ bị xoá.
+    if (chatId != 0 && chatId == m_chatId && m_account) {
+        m_composer->focusInput();
+        return;
+    }
+
     if (m_account && m_chatId != 0 && m_chatId != chatId) {
         m_account->saveDraft(m_chatId, m_composer->text(), m_composer->replyTarget());
         m_account->closeChatSession(m_chatId);
@@ -357,15 +377,22 @@ void ChatView::setChat(qint64 chatId)
     m_composer->setEditTarget(0, QString());
     m_composer->clearInput();
 
-    const bool hasChat = chatId != 0 && m_account != nullptr;
+    // Chỉ mở khung hội thoại khi thực sự biết cuộc trò chuyện này; nếu không sẽ
+    // hiện một khung trống không tiêu đề.
+    const bool hasChat = chatId != 0 && m_account != nullptr
+                      && m_account->chat(chatId) != nullptr;
     m_header->setVisible(hasChat);
     m_body->setVisible(hasChat);
     m_placeholder->setVisible(!hasChat);
 
     if (!hasChat) {
-        m_placeholder->setText(m_account
-            ? tr("Chọn một cuộc trò chuyện ở danh sách bên trái để bắt đầu.")
-            : tr("Thêm tài khoản Telegram để bắt đầu nhắn tin."));
+        if (!m_account)
+            m_placeholder->setText(tr("Thêm tài khoản Telegram để bắt đầu nhắn tin."));
+        else if (chatId != 0)
+            m_placeholder->setText(tr("Đang tải cuộc trò chuyện…"));
+        else
+            m_placeholder->setText(
+                tr("Chọn một cuộc trò chuyện ở danh sách bên trái để bắt đầu."));
         m_model->setChat(0);
         return;
     }
@@ -459,8 +486,11 @@ void ChatView::runInChatSearch()
         return;
 
     m_searchStatus->setText(tr("đang tìm…"));
+    QPointer<ChatView> guard(this);
     m_account->searchMessagesInChat(m_chatId, query,
-                                    [this](const QJsonObject &result, bool ok) {
+                                    [this, guard](const QJsonObject &result, bool ok) {
+        if (!guard)
+            return;
         m_searchHits.clear();
         m_searchCursor = -1;
         if (!ok) {
@@ -593,9 +623,16 @@ void ChatView::onScrolled(int value)
 {
     QScrollBar *bar = m_list->verticalScrollBar();
 
-    // Gần đỉnh → nạp thêm lịch sử cũ.
-    if (value <= bar->minimum() + 40)
+    // Gần đỉnh → nạp thêm lịch sử cũ. Ghi lại tin nhắn đang ở đỉnh để sau khi
+    // chèn còn cuộn về đúng chỗ.
+    if (value <= bar->minimum() + 40 && !m_model->isLoading()) {
+        const QModelIndex top = m_list->indexAt(QPoint(4, 4));
+        if (const MessageEntry *entry = m_model->entryAt(top)) {
+            m_anchorMessageId = entry->id;
+            m_anchorOffset = m_list->visualRect(top).top();
+        }
         m_model->loadOlder();
+    }
 
     m_scrollDownButton->setVisible(!isNearBottom() && m_model->rowCount() > 0);
     if (m_scrollDownButton->isVisible()) {
@@ -622,8 +659,26 @@ void ChatView::onNewestAppended()
 void ChatView::onOlderInserted(int count)
 {
     Q_UNUSED(count)
-    // Giữ nguyên vị trí đang xem khi lịch sử được chèn vào đầu danh sách.
-    // QListView tự dịch chuyển theo số dòng, nên chỉ cần tránh nhảy về đáy.
+
+    // Sau khi chèn vào đầu, giá trị thanh cuộn cũ trỏ vào nội dung khác nên
+    // khung sẽ nhảy. Cuộn lại về đúng tin nhắn vừa neo.
+    if (m_anchorMessageId == 0)
+        return;
+
+    const qint64 anchorId = m_anchorMessageId;
+    const int anchorOffset = m_anchorOffset;
+    m_anchorMessageId = 0;
+
+    QTimer::singleShot(0, this, [this, anchorId, anchorOffset] {
+        const QModelIndex index = m_model->indexOfMessage(anchorId);
+        if (!index.isValid())
+            return;
+        m_list->scrollTo(index, QAbstractItemView::PositionAtTop);
+        if (anchorOffset != 0) {
+            QScrollBar *bar = m_list->verticalScrollBar();
+            bar->setValue(bar->value() - anchorOffset);
+        }
+    });
 }
 
 void ChatView::markVisibleAsRead()
@@ -789,8 +844,9 @@ void ChatView::applyTheme()
     const Theme::Colors &c = Theme::instance().colors();
 
     setStyleSheet(QStringLiteral("ChatView { background: %1; }").arg(c.chatBg.name()));
-    m_header->setStyleSheet(QStringLiteral("QWidget { background: %1; }")
-                                .arg(c.sidebarBg.name()));
+    m_header->setStyleSheet(QStringLiteral("#chatHeader { background: %1;"
+                                           " border-bottom: 1px solid %2; }")
+                                .arg(c.sidebarBg.name(), c.divider.name()));
     m_list->setStyleSheet(QStringLiteral("QListView { background: %1; }")
                               .arg(c.chatBg.name()));
 
@@ -809,10 +865,10 @@ void ChatView::applyTheme()
 
     m_placeholder->setStyleSheet(QStringLiteral("color: %1; font-size: 14px; padding: 40px;")
                                      .arg(c.textMuted.name()));
-    m_searchBar->setStyleSheet(QStringLiteral("QWidget { background: %1; }")
+    m_searchBar->setStyleSheet(QStringLiteral("#chatSearchBar { background: %1; }")
                                    .arg(c.panelBg.name()));
-    m_selectionBar->setStyleSheet(QStringLiteral("QWidget { background: %1; }")
-                                      .arg(c.accentSoft.name(QColor::HexArgb)));
+    m_selectionBar->setStyleSheet(QStringLiteral("#chatSelectionBar { background: %1; }")
+                                      .arg(c.cardBg.name()));
     m_selectionLabel->setStyleSheet(QStringLiteral("color: %1; background: transparent;")
                                         .arg(c.textPrimary.name()));
     m_searchStatus->setStyleSheet(QStringLiteral("color: %1; background: transparent;")

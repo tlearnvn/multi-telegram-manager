@@ -16,6 +16,7 @@
 #include <QListView>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPointer>
 #include <QScrollBar>
 #include <QTabBar>
 #include <QTimer>
@@ -39,12 +40,21 @@ ChatListPane::ChatListPane(QWidget *parent)
 
 void ChatListPane::buildUi()
 {
+    // QWidget thuần không tự vẽ nền khai báo trong stylesheet; cờ này bật
+    // việc đó lên, nếu không widget sẽ trong suốt và lộ màu nền cửa sổ.
+    setAttribute(Qt::WA_StyledBackground, true);
+
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
 
     // --- Đầu cột ----------------------------------------------------------
     m_header = new QWidget(this);
+    m_header->setObjectName(QStringLiteral("chatListHeader"));
+    m_header->setAttribute(Qt::WA_StyledBackground, true);
+    // Không cho đầu cột giãn theo chiều dọc, nếu không QVBoxLayout sẽ chia phần
+    // trống cho nó và ô tìm kiếm bị đẩy xuống giữa cột.
+    m_header->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     auto *headerLayout = new QHBoxLayout(m_header);
     headerLayout->setContentsMargins(10, 10, 8, 6);
     headerLayout->setSpacing(4);
@@ -69,6 +79,8 @@ void ChatListPane::buildUi()
     m_filters->setDrawBase(false);
     m_filters->setUsesScrollButtons(true);
     m_filters->setFocusPolicy(Qt::NoFocus);
+    m_filters->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    m_filters->setElideMode(Qt::ElideNone);
     const ChatFilterKind order[] = {
         ChatFilterKind::All, ChatFilterKind::Unread, ChatFilterKind::Private,
         ChatFilterKind::Groups, ChatFilterKind::Channels, ChatFilterKind::Bots,
@@ -97,13 +109,14 @@ void ChatListPane::buildUi()
     m_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_list->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     m_list->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_delegate->setView(m_list);
     root->addWidget(m_list, 1);
 
     m_emptyLabel = new QLabel(this);
     m_emptyLabel->setAlignment(Qt::AlignCenter);
     m_emptyLabel->setWordWrap(true);
     m_emptyLabel->hide();
-    root->addWidget(m_emptyLabel);
+    root->addWidget(m_emptyLabel, 1);
 
     m_searchTimer = new QTimer(this);
     m_searchTimer->setSingleShot(true);
@@ -241,7 +254,10 @@ void ChatListPane::runServerSearch()
 
     // searchChats tìm trong danh sách đã có; searchPublicChats hỏi máy chủ để
     // tìm cả kênh/nhóm công khai chưa từng mở.
-    m_account->searchPublicChats(query, [this, query](const QJsonObject &result, bool ok) {
+    QPointer<ChatListPane> guard(this);
+    m_account->searchPublicChats(query, [this, guard, query](const QJsonObject &result, bool ok) {
+        if (!guard)
+            return;
         if (!ok || m_search->text().trimmed() != query)
             return;
         const QList<qint64> ids = Json::toInt64List(
@@ -359,13 +375,15 @@ void ChatListPane::applyTheme()
     const Theme::Colors &c = Theme::instance().colors();
 
     setStyleSheet(QStringLiteral("ChatListPane { background: %1; }").arg(c.sidebarBg.name()));
+    m_header->setStyleSheet(QStringLiteral("#chatListHeader { background: %1; }")
+                                .arg(c.sidebarBg.name()));
     m_list->setStyleSheet(QStringLiteral("QListView { background: %1; }")
                               .arg(c.sidebarBg.name()));
     m_emptyLabel->setStyleSheet(QStringLiteral("color: %1; padding: 28px;")
                                     .arg(c.textMuted.name()));
     m_filters->setStyleSheet(QStringLiteral(
         "QTabBar { background: transparent; }"
-        "QTabBar::tab { padding: 6px 12px; margin: 2px 3px; border-radius: 8px;"
+        "QTabBar::tab { padding: 5px 9px; margin: 2px 2px; border-radius: 8px;"
         "  color: %1; background: transparent; }"
         "QTabBar::tab:selected { background: %2; color: %3; font-weight: 600; }"
         "QTabBar::tab:hover:!selected { background: %4; }")

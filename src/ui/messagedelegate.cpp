@@ -8,6 +8,7 @@
 #include "ui/iconfactory.h"
 #include "ui/theme.h"
 
+#include <QAbstractItemView>
 #include <QAbstractTextDocumentLayout>
 #include <QFontMetrics>
 #include <QPainter>
@@ -240,13 +241,24 @@ QString MessageDelegate::metaTextFor(const MessageEntry &entry) const
     return parts.join(QStringLiteral(" · "));
 }
 
+int MessageDelegate::effectiveWidth(const QStyleOptionViewItem &option) const
+{
+    // option.rect rỗng ở một số lần gọi sizeHint() đầu tiên — lúc đó lấy chiều
+    // rộng vùng hiển thị của view.
+    if (option.rect.width() > 80)
+        return option.rect.width();
+    if (m_view && m_view->viewport()->width() > 80)
+        return m_view->viewport()->width();
+    return 480;
+}
+
 MessageDelegate::Layout MessageDelegate::computeLayout(const QStyleOptionViewItem &option,
                                                        const QModelIndex &index,
                                                        const MessageEntry &entry) const
 {
     Layout layout;
 
-    const int viewWidth = qMax(240, option.rect.width());
+    const int viewWidth = qMax(240, effectiveWidth(option));
     const QFontMetrics metrics(option.font);
     int y = option.rect.top() + kRowPadY;
 
@@ -415,7 +427,7 @@ QSize MessageDelegate::sizeHint(const QStyleOptionViewItem &option, const QModel
 
     const QString key = QStringLiteral("%1|%2|%3|%4")
                             .arg(entry->id)
-                            .arg(option.rect.width())
+                            .arg(effectiveWidth(option))
                             .arg(entry->editDate)
                             .arg(entry->isDownloaded ? 1 : 0);
     auto cached = m_heights.constFind(key);
@@ -427,7 +439,7 @@ QSize MessageDelegate::sizeHint(const QStyleOptionViewItem &option, const QModel
 
     const Layout layout = computeLayout(option, index, *entry);
     m_heights.insert(key, layout.totalHeight);
-    return QSize(option.rect.width(), layout.totalHeight);
+    return QSize(effectiveWidth(option), layout.totalHeight);
 }
 
 void MessageDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,

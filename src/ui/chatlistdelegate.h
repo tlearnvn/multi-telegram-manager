@@ -3,6 +3,7 @@
 #include <QStyledItemDelegate>
 
 class ChatListModel;
+class QAbstractItemView;
 
 /*!
  * \brief Vẽ một dòng trong danh sách chat.
@@ -22,12 +23,18 @@ public:
     void setCompact(bool compact);
     bool isCompact() const { return m_compact; }
 
+    //! Cho delegate biết view để lấy chiều rộng thật khi option.rect rỗng.
+    void setView(QAbstractItemView *view) { m_view = view; }
+
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
                const QModelIndex &index) const override;
     QSize sizeHint(const QStyleOptionViewItem &option,
                    const QModelIndex &index) const override;
 
 private:
+    int effectiveWidth(const QStyleOptionViewItem &option) const;
+
     ChatListModel *m_model;
+    QAbstractItemView *m_view = nullptr;
     bool m_compact = false;
 };

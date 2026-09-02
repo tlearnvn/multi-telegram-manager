@@ -555,7 +555,6 @@ void LoginDialog::onError(const QString &message)
 void LoginDialog::applyTheme()
 {
     const Theme::Colors &c = Theme::instance().colors();
-    setStyleSheet(QStringLiteral("LoginDialog { background: %1; }").arg(c.windowBg.name()));
     m_title->setStyleSheet(QStringLiteral("color: %1;").arg(c.textPrimary.name()));
     setHint(m_hint->text());
 }

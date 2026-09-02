@@ -64,7 +64,11 @@ def bump(version: tuple[int, int, int], part: str) -> tuple[int, int, int]:
     return (major, minor, patch + 1)
 
 
-def run_git(args: list[str]) -> str:
+ZERO_SHA = "0" * 40
+
+
+def run_git(args: list[str]) -> str | None:
+    """Chạy git; trả về None nếu lệnh lỗi (khác với chạy được mà không có kết quả)."""
     result = subprocess.run(
         ["git", *args],
         cwd=REPO_ROOT,
@@ -72,20 +76,44 @@ def run_git(args: list[str]) -> str:
         text=True,
         check=False,
     )
-    return result.stdout if result.returncode == 0 else ""
+    return result.stdout if result.returncode == 0 else None
 
 
-def changed_paths(staged: bool, diff_base: str | None) -> list[str]:
+def changed_paths(staged: bool, diff_base: str | None) -> list[str] | None:
+    """Danh sách tệp đã thay đổi.
+
+    Trả về None khi không xác định được (nhánh mới nên không có mốc so sánh,
+    lịch sử bị cắt ngắn…). Người gọi coi None là "cứ tăng phiên bản cho chắc",
+    vì một lần đẩy mã không phân tích được thì phần lớn là có sửa mã.
+    """
     if staged:
         output = run_git(["diff", "--cached", "--name-only"])
-    elif diff_base:
-        output = run_git(["diff", "--name-only", f"{diff_base}..HEAD"])
-    else:
-        output = run_git(["diff", "--name-only", "HEAD~1..HEAD"])
+        return _split(output) if output is not None else None
+
+    candidates: list[list[str]] = []
+    if diff_base and diff_base.strip() and diff_base.strip(ZERO_SHA[0]) != "":
+        candidates.append(["diff", "--name-only", f"{diff_base}..HEAD"])
+    candidates.append(["diff", "--name-only", "HEAD~1..HEAD"])
+    # Commit đầu tiên không có HEAD~1 — liệt kê thẳng nội dung commit.
+    candidates.append(["show", "--name-only", "--pretty=format:", "HEAD"])
+
+    for args in candidates:
+        output = run_git(args)
+        if output is None:
+            continue
+        paths = _split(output)
+        if paths:
+            return paths
+    return None
+
+
+def _split(output: str) -> list[str]:
     return [line.strip() for line in output.splitlines() if line.strip()]
 
 
-def source_touched(paths: list[str]) -> bool:
+def source_touched(paths: list[str] | None) -> bool:
+    if paths is None:
+        return True   # không rõ thì cứ tăng
     return any(path.startswith(WATCHED_PREFIXES) for path in paths)
 
 
@@ -128,6 +156,8 @@ def main() -> int:
 
     if args.auto:
         paths = changed_paths(args.staged, args.diff_base)
+        if paths is None and not args.staged:
+            print("bump_version: không xác định được thay đổi, tăng phiên bản cho chắc")
         if not source_touched(paths):
             print(
                 "bump_version: không có thay đổi trong mã nguồn, giữ nguyên "

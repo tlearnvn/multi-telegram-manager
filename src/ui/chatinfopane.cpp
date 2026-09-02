@@ -15,6 +15,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPainter>
+#include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QVBoxLayout>
@@ -63,6 +64,10 @@ ChatInfoPane::ChatInfoPane(QWidget *parent)
 
 void ChatInfoPane::buildUi()
 {
+    // QWidget thuần không tự vẽ nền khai báo trong stylesheet; cờ này bật
+    // việc đó lên, nếu không widget sẽ trong suốt và lộ màu nền cửa sổ.
+    setAttribute(Qt::WA_StyledBackground, true);
+
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
@@ -203,8 +208,9 @@ void ChatInfoPane::buildUi()
         const qint64 userId = item->data(kUserRole).toLongLong();
         if (userId == 0)
             return;
-        m_account->createPrivateChat(userId, [this](const QJsonObject &result, bool ok) {
-            if (ok)
+        QPointer<ChatInfoPane> guard(this);
+        m_account->createPrivateChat(userId, [this, guard](const QJsonObject &result, bool ok) {
+            if (guard && ok)
                 emit openChatRequested(Json::int64(result, QStringLiteral("id")));
         });
     });
@@ -314,8 +320,9 @@ void ChatInfoPane::loadMembers()
     if (!entry || !(entry->isGroupLike() || entry->kind == ChatEntry::Kind::Channel))
         return;
 
-    m_account->fetchChatMembers(m_chatId, [this](const QJsonObject &result, bool ok) {
-        if (!ok)
+    QPointer<ChatInfoPane> guard(this);
+    m_account->fetchChatMembers(m_chatId, [this, guard](const QJsonObject &result, bool ok) {
+        if (!guard || !ok)
             return;
 
         m_members->clear();

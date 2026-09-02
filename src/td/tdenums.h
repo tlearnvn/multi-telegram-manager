@@ -19,11 +19,11 @@ inline QString chatFilterLabel(ChatFilterKind kind)
     switch (kind) {
     case ChatFilterKind::All:      return QStringLiteral("Tất cả");
     case ChatFilterKind::Unread:   return QStringLiteral("Chưa đọc");
-    case ChatFilterKind::Private:  return QStringLiteral("Riêng tư");
+    case ChatFilterKind::Private:  return QStringLiteral("Riêng");
     case ChatFilterKind::Groups:   return QStringLiteral("Nhóm");
     case ChatFilterKind::Channels: return QStringLiteral("Kênh");
     case ChatFilterKind::Bots:     return QStringLiteral("Bot");
-    case ChatFilterKind::Archived: return QStringLiteral("Lưu trữ");
+    case ChatFilterKind::Archived: return QStringLiteral("Lưu");
     }
     return QStringLiteral("Tất cả");
 }

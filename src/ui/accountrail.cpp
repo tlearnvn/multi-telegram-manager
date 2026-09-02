@@ -201,6 +201,9 @@ AccountRail::AccountRail(AccountManager *manager, QWidget *parent)
     , m_manager(manager)
 {
     setFixedWidth(kRailWidth);
+    // QWidget thuần không tự vẽ nền khai báo trong stylesheet; cờ này bật
+    // việc đó lên, nếu không widget sẽ trong suốt và lộ màu nền cửa sổ.
+    setAttribute(Qt::WA_StyledBackground, true);
 
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(0, 8, 0, 8);

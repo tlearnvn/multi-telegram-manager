@@ -73,6 +73,7 @@ EmojiPicker::EmojiPicker(QWidget *parent)
 {
     setWindowFlag(Qt::FramelessWindowHint, true);
     setAttribute(Qt::WA_TranslucentBackground, false);
+    setAttribute(Qt::WA_StyledBackground, true);
     setFixedSize(kColumns * kCellSize + 34, 320);
 
     auto *root = new QVBoxLayout(this);

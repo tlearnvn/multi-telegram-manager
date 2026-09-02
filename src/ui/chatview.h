@@ -98,6 +98,11 @@ private:
     QLabel *m_placeholder = nullptr;
     QWidget *m_body = nullptr;
 
+    //! Tin nhắn đang ở đỉnh khung ngay trước khi nạp thêm lịch sử, dùng để
+    //! cuộn về đúng chỗ cũ sau khi chèn (nếu không màn hình sẽ nhảy).
+    qint64 m_anchorMessageId = 0;
+    int m_anchorOffset = 0;
+
     QPushButton *m_scrollDownButton = nullptr;
     QTimer *m_readTimer = nullptr;
 };
