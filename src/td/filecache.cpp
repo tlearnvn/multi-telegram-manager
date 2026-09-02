@@ -18,8 +18,11 @@ QString cacheKey(const QString &path, const QSize &size, bool crop)
 } // namespace
 
 FileCache::FileCache()
-    : m_cache(240)   // ~240 ảnh nhỏ
-    , m_sizes(2000)
+    // Chi phí mỗi ảnh tính theo đơn vị 4096 điểm ảnh (~16 KB ở 32 bit), nên
+    // 2048 đơn vị ≈ 32 MB — đủ giữ hàng trăm avatar và vài chục ảnh trong chat
+    // mà không phình bộ nhớ.
+    : m_cache(2048)
+    , m_sizes(4000)
 {
 }
 

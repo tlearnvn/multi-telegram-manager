@@ -28,6 +28,18 @@ QStringList TdLoader::expectedFileNames()
 #endif
 }
 
+QStringList TdLoader::libraryNamePatterns()
+{
+#if defined(Q_OS_WIN)
+    return { QStringLiteral("tdjson.dll") };
+#elif defined(Q_OS_MACOS)
+    return { QStringLiteral("libtdjson*.dylib") };
+#else
+    // Bắt cả libtdjson.so và libtdjson.so.1.8.x — mỗi bản TDLib đặt tên khác.
+    return { QStringLiteral("libtdjson.so"), QStringLiteral("libtdjson.so.*") };
+#endif
+}
+
 bool TdLoader::load()
 {
     if (m_loaded)
@@ -64,10 +76,31 @@ bool TdLoader::load()
              << QDir(mounted).filePath(QStringLiteral("../lib"));
     }
 
-    const QStringList names = expectedFileNames();
+    // Quét thư mục theo mẫu tên thay vì đoán từng tên cụ thể: có bản TDLib ra
+    // libtdjson.so, có bản ra libtdjson.so.1.8.x.
+    const QStringList patterns = libraryNamePatterns();
     for (const QString &dir : dirs) {
-        for (const QString &name : names) {
-            if (tryLoad(QDir(dir).filePath(name)))
+        QDir directory(dir);
+        if (!directory.exists())
+            continue;
+        const QStringList found = directory.entryList(patterns, QDir::Files | QDir::NoSymLinks,
+                                                      QDir::Name);
+        // Ưu tiên tên không hậu tố phiên bản (thường là symlink chuẩn), rồi mới
+        // tới các tên có phiên bản, lấy bản mới nhất trước.
+        QStringList ordered;
+        for (const QString &name : found) {
+            if (name == QStringLiteral("libtdjson.so") || name == QStringLiteral("tdjson.dll"))
+                ordered.prepend(name);
+            else
+                ordered.append(name);
+        }
+        for (const QString &name : ordered) {
+            if (tryLoad(directory.filePath(name)))
+                return true;
+        }
+        // Tệp có thể là symlink (NoSymLinks ở trên đã lọc) — thử thêm tên chuẩn.
+        for (const QString &name : expectedFileNames()) {
+            if (tryLoad(directory.filePath(name)))
                 return true;
         }
     }

@@ -39,6 +39,9 @@ public:
     //! Danh sách tên tệp mong đợi trên nền tảng hiện tại — dùng cho hướng dẫn.
     static QStringList expectedFileNames();
 
+    //! Mẫu tên tệp để quét thư mục (bắt cả tên có hậu tố phiên bản).
+    static QStringList libraryNamePatterns();
+
     //! Gợi ý bằng tiếng Việt khi không tìm thấy thư viện.
     QString installationHint() const;
 
