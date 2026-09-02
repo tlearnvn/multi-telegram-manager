@@ -332,14 +332,36 @@ jobs:
           New-Item -ItemType Directory -Force -Path $out | Out-Null
 
           Copy-Item build\bin\TuanMultiTeleClient.exe $out
-          # --compiler-runtime là bắt buộc với bản cơ động: không có
-          # vcruntime140.dll / msvcp140.dll thì máy chưa cài "Visual C++
-          # Redistributable" sẽ báo thiếu DLL ngay khi mở, đúng vào tình huống
-          # cắm USB sang máy khác mà ứng dụng này hướng tới.
           & "$env:QT_ROOT_DIR\bin\windeployqt.exe" `
               --release --no-translations --no-system-d3d-compiler `
-              --no-opengl-sw --compiler-runtime `
+              --no-opengl-sw --no-compiler-runtime `
               "$out\TuanMultiTeleClient.exe"
+
+          # Runtime MSVC phải nằm trong gói: máy chưa cài "Visual C++
+          # Redistributable" sẽ báo thiếu vcruntime140.dll ngay khi mở — đúng vào
+          # tình huống cắm USB sang máy khác mà bản cơ động này hướng tới.
+          # Tự copy chứ không nhờ windeployqt --compiler-runtime, vì bước này
+          # không nạp môi trường dòng lệnh của Visual Studio nên windeployqt có
+          # thể không tìm ra thư mục redist (và im lặng không copy gì).
+          $crt = Get-ChildItem `
+              "${env:ProgramFiles}\Microsoft Visual Studio\2022\*\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT" `
+              -Directory -ErrorAction SilentlyContinue |
+              Sort-Object FullName | Select-Object -Last 1
+          if ($crt) {
+              Copy-Item "$($crt.FullName)\*.dll" $out -Force
+              Write-Host "Da kem runtime MSVC tu $($crt.FullName)"
+          } else {
+              Write-Host 'Khong tim thay thu muc redist cua Visual Studio.'
+          }
+
+          # Không có các DLL này thì gói coi như hỏng với người dùng cuối, nên
+          # thà báo đỏ ở đây còn hơn phát hành một bản không mở được.
+          foreach ($dll in @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll')) {
+              if (-not (Test-Path "$out\$dll")) {
+                  Get-ChildItem $out | Select-Object Name
+                  throw "Thieu $dll trong goi — ban co dong se khong chay tren may chua cai VC++ Redistributable."
+              }
+          }
 
           Copy-Item README.md, LICENSE, VERSION.txt $out
           if (Test-Path docs\HUONG-DAN.md) { Copy-Item docs\HUONG-DAN.md $out }
